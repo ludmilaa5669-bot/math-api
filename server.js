@@ -21,49 +21,52 @@ const JWT_SECRET = process.env.JWT_SECRET || 'math-easy-secret-key-2026';
 const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID;
 const YOOKASSA_SECRET_KEY = process.env.YOOKASSA_SECRET_KEY;
 
-// Health check
-app.get('/', (req, res) => res.json({ status: 'API works', version: '4.0' }));
+app.get('/', function(req, res) { res.json({ status: 'API works', version: '5.0' }); });
 
 // ==================== AUTH ====================
 
-app.post('/api/register', async (req, res) => {
+app.post('/api/register', async function(req, res) {
   try {
-    const { email, password, child_name, grade } = req.body;
-    const hash = await bcrypt.hash(password, 10);
-    const parentResult = await pool.query(
+    var email = req.body.email;
+    var password = req.body.password;
+    var child_name = req.body.child_name;
+    var grade = req.body.grade;
+    var hash = await bcrypt.hash(password, 10);
+    var parentResult = await pool.query(
       'INSERT INTO parents (email, password_hash) VALUES ($1, $2) RETURNING id, email',
       [email, hash]
     );
-    const parent = parentResult.rows[0];
-    const childResult = await pool.query(
+    var parent = parentResult.rows[0];
+    var childResult = await pool.query(
       'INSERT INTO children (parent_id, name, grade) VALUES ($1, $2, $3) RETURNING *',
       [parent.id, child_name, grade]
     );
-    const child = childResult.rows[0];
-    const trialEnd = new Date();
+    var child = childResult.rows[0];
+    var trialEnd = new Date();
     trialEnd.setDate(trialEnd.getDate() + 5);
     await pool.query(
       'INSERT INTO subscriptions (parent_id, plan, status, expires_at) VALUES ($1, $2, $3, $4)',
       [parent.id, 'trial', 'trial', trialEnd]
     );
-    const token = jwt.sign({ parentId: parent.id }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, parent, child });
+    var token = jwt.sign({ parentId: parent.id }, JWT_SECRET, { expiresIn: '30d' });
+    res.json({ token: token, parent: parent, child: child });
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
 });
 
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', async function(req, res) {
   try {
-    const { email, password } = req.body;
-    const result = await pool.query('SELECT * FROM parents WHERE email = $1', [email]);
+    var email = req.body.email;
+    var password = req.body.password;
+    var result = await pool.query('SELECT * FROM parents WHERE email = $1', [email]);
     if (result.rows.length === 0) return res.status(401).json({ error: 'User not found' });
-    const parent = result.rows[0];
-    const valid = await bcrypt.compare(password, parent.password_hash);
+    var parent = result.rows[0];
+    var valid = await bcrypt.compare(password, parent.password_hash);
     if (!valid) return res.status(401).json({ error: 'Wrong password' });
-    const children = await pool.query('SELECT * FROM children WHERE parent_id = $1', [parent.id]);
-    const token = jwt.sign({ parentId: parent.id }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, parent: { id: parent.id, email: parent.email }, children: children.rows });
+    var children = await pool.query('SELECT * FROM children WHERE parent_id = $1', [parent.id]);
+    var token = jwt.sign({ parentId: parent.id }, JWT_SECRET, { expiresIn: '30d' });
+    res.json({ token: token, parent: { id: parent.id, email: parent.email }, children: children.rows });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -71,9 +74,9 @@ app.post('/api/login', async (req, res) => {
 
 // ==================== CONTENT ====================
 
-app.get('/api/topics/:grade', async (req, res) => {
+app.get('/api/topics/:grade', async function(req, res) {
   try {
-    const result = await pool.query(
+    var result = await pool.query(
       'SELECT t.*, s.name as subject_name, s.icon FROM topics t JOIN subjects s ON t.subject_id = s.id WHERE t.grade = $1 ORDER BY t.sort_order',
       [req.params.grade]
     );
@@ -83,9 +86,9 @@ app.get('/api/topics/:grade', async (req, res) => {
   }
 });
 
-app.get('/api/questions/:topic_id', async (req, res) => {
+app.get('/api/questions/:topic_id', async function(req, res) {
   try {
-    const result = await pool.query(
+    var result = await pool.query(
       'SELECT * FROM questions WHERE topic_id = $1 ORDER BY sort_order',
       [req.params.topic_id]
     );
@@ -97,14 +100,17 @@ app.get('/api/questions/:topic_id', async (req, res) => {
 
 // ==================== RESULTS ====================
 
-app.post('/api/results', async (req, res) => {
+app.post('/api/results', async function(req, res) {
   try {
-    const { child_id, topic_id, score, total_questions } = req.body;
-    const result = await pool.query(
+    var child_id = req.body.child_id;
+    var topic_id = req.body.topic_id;
+    var score = req.body.score;
+    var total_questions = req.body.total_questions;
+    var result = await pool.query(
       'INSERT INTO test_results (child_id, topic_id, score, total_questions) VALUES ($1, $2, $3, $4) RETURNING *',
       [child_id, topic_id, score, total_questions]
     );
-    const stars = Math.round((score / total_questions) * 3);
+    var stars = Math.round((score / total_questions) * 3);
     await pool.query('UPDATE children SET stars = stars + $1 WHERE id = $2', [stars, child_id]);
     res.json(result.rows[0]);
   } catch (e) {
@@ -112,10 +118,10 @@ app.post('/api/results', async (req, res) => {
   }
 });
 
-app.get('/api/stats/:child_id', async (req, res) => {
+app.get('/api/stats/:child_id', async function(req, res) {
   try {
-    const child = await pool.query('SELECT * FROM children WHERE id = $1', [req.params.child_id]);
-    const results = await pool.query(
+    var child = await pool.query('SELECT * FROM children WHERE id = $1', [req.params.child_id]);
+    var results = await pool.query(
       'SELECT tr.*, t.title as topic_title FROM test_results tr JOIN topics t ON tr.topic_id = t.id WHERE tr.child_id = $1 ORDER BY tr.completed_at DESC',
       [req.params.child_id]
     );
@@ -127,18 +133,18 @@ app.get('/api/stats/:child_id', async (req, res) => {
 
 // ==================== SUBSCRIPTIONS ====================
 
-app.get('/api/subscription/:parent_id', async (req, res) => {
+app.get('/api/subscription/:parent_id', async function(req, res) {
   try {
-    const result = await pool.query(
+    var result = await pool.query(
       'SELECT * FROM subscriptions WHERE parent_id = $1 ORDER BY started_at DESC LIMIT 1',
       [req.params.parent_id]
     );
     if (result.rows.length === 0) return res.json({ status: 'none', expired: true });
-    const sub = result.rows[0];
-    const now = new Date();
-    const expired = sub.expires_at && new Date(sub.expires_at) < now;
-    const daysLeft = sub.expires_at ? Math.max(0, Math.ceil((new Date(sub.expires_at) - now) / (1000 * 60 * 60 * 24))) : 0;
-    res.json({ ...sub, expired, days_left: daysLeft });
+    var sub = result.rows[0];
+    var now = new Date();
+    var expired = sub.expires_at && new Date(sub.expires_at) < now;
+    var daysLeft = sub.expires_at ? Math.max(0, Math.ceil((new Date(sub.expires_at) - now) / (1000 * 60 * 60 * 24))) : 0;
+    res.json({ id: sub.id, parent_id: sub.parent_id, plan: sub.plan, status: sub.status, started_at: sub.started_at, expires_at: sub.expires_at, expired: expired, days_left: daysLeft });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -146,9 +152,14 @@ app.get('/api/subscription/:parent_id', async (req, res) => {
 
 // ==================== YOOKASSA PAYMENT ====================
 
-app.post('/api/payment/create', async (req, res) => {
+app.post('/api/payment/create', async function(req, res) {
   try {
-    const { parent_id, plan, amount, return_url } = req.body;
+    var parent_id = req.body.parent_id;
+    var plan = req.body.plan;
+    var amount = req.body.amount;
+    var return_url = req.body.return_url;
+    var email = req.body.email || 'customer@example.com';
+
     console.log('Payment request:', JSON.stringify(req.body));
 
     if (!YOOKASSA_SHOP_ID || !YOOKASSA_SECRET_KEY) {
@@ -156,20 +167,44 @@ app.post('/api/payment/create', async (req, res) => {
       return res.status(500).json({ error: 'YooKassa credentials not configured' });
     }
 
-    const idempotenceKey = parent_id + '-' + plan + '-' + Date.now();
+    var idempotenceKey = parent_id + '-' + plan + '-' + Date.now();
 
-    var description = 'Subscription 1 month';
-    if (plan === 'halfyear') description = 'Subscription 6 months';
+    var itemDescription = 'Podpiska na 1 mesyats';
+    if (plan === 'halfyear') itemDescription = 'Podpiska na 6 mesyatsev';
 
     var requestBody = {
-      amount: { value: amount, currency: 'RUB' },
+      amount: {
+        value: amount,
+        currency: 'RUB'
+      },
       confirmation: {
         type: 'redirect',
         return_url: return_url || 'https://xn--80aafbgfceijfjhfadim5ae4akh0ag5e.xn--p1ai/payment-success'
       },
       capture: true,
-      description: description,
-      metadata: { parent_id: String(parent_id), plan: plan }
+      description: itemDescription,
+      metadata: {
+        parent_id: String(parent_id),
+        plan: plan
+      },
+      receipt: {
+        customer: {
+          email: email
+        },
+        items: [
+          {
+            description: itemDescription,
+            quantity: '1.00',
+            amount: {
+              value: amount,
+              currency: 'RUB'
+            },
+            vat_code: 1,
+            payment_subject: 'service',
+            payment_mode: 'full_payment'
+          }
+        ]
+      }
     };
 
     console.log('YooKassa request body:', JSON.stringify(requestBody));
@@ -212,7 +247,7 @@ app.post('/api/payment/create', async (req, res) => {
 });
 
 // YooKassa webhook
-app.post('/api/payment/webhook', async (req, res) => {
+app.post('/api/payment/webhook', async function(req, res) {
   try {
     console.log('Webhook received:', JSON.stringify(req.body));
     var event = req.body.event;
@@ -255,7 +290,7 @@ app.post('/api/payment/webhook', async (req, res) => {
 });
 
 // Check payment status
-app.get('/api/payment/status/:payment_id', async (req, res) => {
+app.get('/api/payment/status/:payment_id', async function(req, res) {
   try {
     var response = await fetch('https://api.yookassa.ru/v3/payments/' + req.params.payment_id, {
       headers: {
