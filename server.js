@@ -20,8 +20,9 @@ const pool = new Pool({
 const JWT_SECRET = process.env.JWT_SECRET || 'math-easy-secret-key-2026';
 const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID;
 const YOOKASSA_SECRET_KEY = process.env.YOOKASSA_SECRET_KEY;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'MathAdmin2026!';
 
-app.get('/', function(req, res) { res.json({ status: 'API works', version: '5.0' }); });
+app.get('/', function(req, res) { res.json({ status: 'API works', version: '6.0' }); });
 
 // ==================== AUTH ====================
 
@@ -208,7 +209,6 @@ app.post('/api/payment/create', async function(req, res) {
     };
 
     console.log('YooKassa request body:', JSON.stringify(requestBody));
-    console.log('Using shop_id:', YOOKASSA_SHOP_ID);
 
     var response = await fetch('https://api.yookassa.ru/v3/payments', {
       method: 'POST',
@@ -325,6 +325,80 @@ app.get('/api/payment/status/:payment_id', async function(req, res) {
     }
 
     res.json(payment);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==================== ADMIN ====================
+
+app.post('/api/admin/login', function(req, res) {
+  var password = req.body.password;
+  if (password === ADMIN_PASSWORD) {
+    var token = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '24h' });
+    res.json({ token: token, success: true });
+  } else {
+    res.status(401).json({ error: 'Wrong admin password' });
+  }
+});
+
+app.get('/api/admin/users', async function(req, res) {
+  try {
+    var authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: 'No token' });
+    var token = authHeader.replace('Bearer ', '');
+    var decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded.role !== 'admin') return res.status(403).json({ error: 'Not admin' });
+
+    var result = await pool.query(
+      "SELECT p.id, p.email, p.created_at as registered, c.name as child_name, c.grade, c.stars, s.plan, s.status as sub_status, s.started_at as sub_start, s.expires_at as sub_end FROM parents p LEFT JOIN children c ON c.parent_id = p.id LEFT JOIN subscriptions s ON s.parent_id = p.id ORDER BY p.created_at DESC"
+    );
+    res.json(result.rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/admin/stats', async function(req, res) {
+  try {
+    var authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: 'No token' });
+    var token = authHeader.replace('Bearer ', '');
+    var decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded.role !== 'admin') return res.status(403).json({ error: 'Not admin' });
+
+    var totalUsers = await pool.query('SELECT COUNT(*) as count FROM parents');
+    var activeSubscriptions = await pool.query("SELECT COUNT(*) as count FROM subscriptions WHERE status = 'active' AND expires_at > NOW()");
+    var trialUsers = await pool.query("SELECT COUNT(*) as count FROM subscriptions WHERE status = 'trial' AND expires_at > NOW()");
+    var expiredUsers = await pool.query("SELECT COUNT(*) as count FROM subscriptions WHERE expires_at < NOW()");
+    var totalTests = await pool.query('SELECT COUNT(*) as count FROM test_results');
+    var todayRegistrations = await pool.query("SELECT COUNT(*) as count FROM parents WHERE created_at >= CURRENT_DATE");
+
+    res.json({
+      total_users: parseInt(totalUsers.rows[0].count),
+      active_subscriptions: parseInt(activeSubscriptions.rows[0].count),
+      trial_users: parseInt(trialUsers.rows[0].count),
+      expired_users: parseInt(expiredUsers.rows[0].count),
+      total_tests: parseInt(totalTests.rows[0].count),
+      today_registrations: parseInt(todayRegistrations.rows[0].count)
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/admin/test-results', async function(req, res) {
+  try {
+    var authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: 'No token' });
+    var token = authHeader.replace('Bearer ', '');
+    var decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded.role !== 'admin') return res.status(403).json({ error: 'Not admin' });
+
+    var result = await pool.query(
+      "SELECT tr.id, tr.score, tr.total_questions, tr.completed_at, c.name as child_name, c.grade, t.title as topic_title, p.email FROM test_results tr JOIN children c ON tr.child_id = c.id JOIN topics t ON tr.topic_id = t.id JOIN parents p ON c.parent_id = p.id ORDER BY tr.completed_at DESC LIMIT 100"
+    );
+    res.json(result.rows);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
