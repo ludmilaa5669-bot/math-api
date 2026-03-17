@@ -22,7 +22,7 @@ const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID;
 const YOOKASSA_SECRET_KEY = process.env.YOOKASSA_SECRET_KEY;
 
 // Health check
-app.get('/', (req, res) => res.json({ status: 'API работает', version: '3.0' }));
+app.get('/', (req, res) => res.json({ status: 'API works', version: '4.0' }));
 
 // ==================== AUTH ====================
 
@@ -40,7 +40,6 @@ app.post('/api/register', async (req, res) => {
       [parent.id, child_name, grade]
     );
     const child = childResult.rows[0];
-    // Create trial subscription (5 days)
     const trialEnd = new Date();
     trialEnd.setDate(trialEnd.getDate() + 5);
     await pool.query(
@@ -58,10 +57,10 @@ app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     const result = await pool.query('SELECT * FROM parents WHERE email = $1', [email]);
-    if (result.rows.length === 0) return res.status(401).json({ error: 'Пользователь не найден' });
+    if (result.rows.length === 0) return res.status(401).json({ error: 'User not found' });
     const parent = result.rows[0];
     const valid = await bcrypt.compare(password, parent.password_hash);
-    if (!valid) return res.status(401).json({ error: 'Неверный пароль' });
+    if (!valid) return res.status(401).json({ error: 'Wrong password' });
     const children = await pool.query('SELECT * FROM children WHERE parent_id = $1', [parent.id]);
     const token = jwt.sign({ parentId: parent.id }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, parent: { id: parent.id, email: parent.email }, children: children.rows });
@@ -150,54 +149,79 @@ app.get('/api/subscription/:parent_id', async (req, res) => {
 app.post('/api/payment/create', async (req, res) => {
   try {
     const { parent_id, plan, amount, return_url } = req.body;
-    const idempotenceKey = `${parent_id}-${plan}-${Date.now()}`;
+    console.log('Payment request:', JSON.stringify(req.body));
 
-    let description = 'Подписка на 1 месяц';
-    if (plan === 'halfyear') description = 'Подписка на 6 месяцев';
+    if (!YOOKASSA_SHOP_ID || !YOOKASSA_SECRET_KEY) {
+      console.log('ERROR: YooKassa credentials missing');
+      return res.status(500).json({ error: 'YooKassa credentials not configured' });
+    }
 
-    const response = await fetch('https://api.yookassa.ru/v3/payments', {
+    const idempotenceKey = parent_id + '-' + plan + '-' + Date.now();
+
+    var description = 'Subscription 1 month';
+    if (plan === 'halfyear') description = 'Subscription 6 months';
+
+    var requestBody = {
+      amount: { value: amount, currency: 'RUB' },
+      confirmation: {
+        type: 'redirect',
+        return_url: return_url || 'https://xn--80aafbgfceijfjhfadim5ae4akh0ag5e.xn--p1ai/payment-success'
+      },
+      capture: true,
+      description: description,
+      metadata: { parent_id: String(parent_id), plan: plan }
+    };
+
+    console.log('YooKassa request body:', JSON.stringify(requestBody));
+    console.log('Using shop_id:', YOOKASSA_SHOP_ID);
+
+    var response = await fetch('https://api.yookassa.ru/v3/payments', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Idempotence-Key': idempotenceKey,
         'Authorization': 'Basic ' + Buffer.from(YOOKASSA_SHOP_ID + ':' + YOOKASSA_SECRET_KEY).toString('base64')
       },
-      body: JSON.stringify({
-        amount: { value: amount, currency: 'RUB' },
-        confirmation: {
-          type: 'redirect',
-          return_url: return_url || 'https://математикапростоматематика.рф/payment-success'
-        },
-        capture: true,
-        description: description,
-        metadata: { parent_id: String(parent_id), plan }
-      })
+      body: JSON.stringify(requestBody)
     });
 
-    const payment = await response.json();
-    if (payment.id) {
+    var responseText = await response.text();
+    console.log('YooKassa response status:', response.status);
+    console.log('YooKassa response body:', responseText);
+
+    var payment;
+    try {
+      payment = JSON.parse(responseText);
+    } catch (e) {
+      return res.status(500).json({ error: 'Invalid response from YooKassa', raw: responseText });
+    }
+
+    if (payment.id && payment.confirmation) {
       res.json({
         payment_id: payment.id,
         confirmation_url: payment.confirmation.confirmation_url,
         status: payment.status
       });
     } else {
-      res.status(400).json({ error: 'Ошибка создания платежа', details: payment });
+      res.status(400).json({ error: 'Payment creation failed', details: payment });
     }
   } catch (e) {
+    console.log('Payment error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
 
-// YooKassa webhook — вызывается автоматически после оплаты
+// YooKassa webhook
 app.post('/api/payment/webhook', async (req, res) => {
   try {
-    const { event, object } = req.body;
+    console.log('Webhook received:', JSON.stringify(req.body));
+    var event = req.body.event;
+    var object = req.body.object;
     if (event === 'payment.succeeded') {
-      const parentId = object.metadata.parent_id;
-      const plan = object.metadata.plan;
-      const now = new Date();
-      const expiresAt = new Date();
+      var parentId = object.metadata.parent_id;
+      var plan = object.metadata.plan;
+      var now = new Date();
+      var expiresAt = new Date();
 
       if (plan === 'monthly') {
         expiresAt.setMonth(expiresAt.getMonth() + 1);
@@ -205,47 +229,46 @@ app.post('/api/payment/webhook', async (req, res) => {
         expiresAt.setMonth(expiresAt.getMonth() + 6);
       }
 
-      // Check if subscription exists
-      const existing = await pool.query(
+      var existing = await pool.query(
         'SELECT id FROM subscriptions WHERE parent_id = $1',
         [parentId]
       );
 
       if (existing.rows.length > 0) {
         await pool.query(
-          `UPDATE subscriptions SET plan = $1, status = 'active', started_at = $2, expires_at = $3 WHERE parent_id = $4`,
+          "UPDATE subscriptions SET plan = $1, status = 'active', started_at = $2, expires_at = $3 WHERE parent_id = $4",
           [plan, now, expiresAt, parentId]
         );
       } else {
         await pool.query(
-          `INSERT INTO subscriptions (parent_id, plan, status, started_at, expires_at) VALUES ($1, $2, 'active', $3, $4)`,
+          "INSERT INTO subscriptions (parent_id, plan, status, started_at, expires_at) VALUES ($1, $2, 'active', $3, $4)",
           [parentId, plan, now, expiresAt]
         );
       }
+      console.log('Subscription activated for parent:', parentId, 'plan:', plan);
     }
     res.json({ status: 'ok' });
   } catch (e) {
-    console.error('Webhook error:', e.message);
+    console.log('Webhook error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
 
-// Check payment status manually
+// Check payment status
 app.get('/api/payment/status/:payment_id', async (req, res) => {
   try {
-    const response = await fetch(`https://api.yookassa.ru/v3/payments/${req.params.payment_id}`, {
+    var response = await fetch('https://api.yookassa.ru/v3/payments/' + req.params.payment_id, {
       headers: {
         'Authorization': 'Basic ' + Buffer.from(YOOKASSA_SHOP_ID + ':' + YOOKASSA_SECRET_KEY).toString('base64')
       }
     });
-    const payment = await response.json();
+    var payment = await response.json();
 
-    // If payment succeeded, activate subscription
     if (payment.status === 'succeeded' && payment.metadata) {
-      const parentId = payment.metadata.parent_id;
-      const plan = payment.metadata.plan;
-      const now = new Date();
-      const expiresAt = new Date();
+      var parentId = payment.metadata.parent_id;
+      var plan = payment.metadata.plan;
+      var now = new Date();
+      var expiresAt = new Date();
 
       if (plan === 'monthly') {
         expiresAt.setMonth(expiresAt.getMonth() + 1);
@@ -253,14 +276,14 @@ app.get('/api/payment/status/:payment_id', async (req, res) => {
         expiresAt.setMonth(expiresAt.getMonth() + 6);
       }
 
-      const existing = await pool.query(
+      var existing = await pool.query(
         'SELECT id, status FROM subscriptions WHERE parent_id = $1',
         [parentId]
       );
 
       if (existing.rows.length > 0 && existing.rows[0].status !== 'active') {
         await pool.query(
-          `UPDATE subscriptions SET plan = $1, status = 'active', started_at = $2, expires_at = $3 WHERE parent_id = $4`,
+          "UPDATE subscriptions SET plan = $1, status = 'active', started_at = $2, expires_at = $3 WHERE parent_id = $4",
           [plan, now, expiresAt, parentId]
         );
       }
@@ -272,5 +295,5 @@ app.get('/api/payment/status/:payment_id', async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log('API running on port ' + PORT));
+var PORT = process.env.PORT || 3000;
+app.listen(PORT, function() { console.log('API running on port ' + PORT); });
