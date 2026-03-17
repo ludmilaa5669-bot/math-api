@@ -22,7 +22,7 @@ const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID;
 const YOOKASSA_SECRET_KEY = process.env.YOOKASSA_SECRET_KEY;
 
 // Health check
-app.get('/', (req, res) => res.json({ status: 'API работает', version: '2.0' }));
+app.get('/', (req, res) => res.json({ status: 'API работает', version: '3.0' }));
 
 // ==================== AUTH ====================
 
@@ -40,9 +40,9 @@ app.post('/api/register', async (req, res) => {
       [parent.id, child_name, grade]
     );
     const child = childResult.rows[0];
-    // Create trial subscription (3 days)
+    // Create trial subscription (5 days)
     const trialEnd = new Date();
-    trialEnd.setDate(trialEnd.getDate() + 3);
+    trialEnd.setDate(trialEnd.getDate() + 5);
     await pool.query(
       'INSERT INTO subscriptions (parent_id, plan, status, expires_at) VALUES ($1, $2, $3, $4)',
       [parent.id, 'trial', 'trial', trialEnd]
@@ -131,14 +131,15 @@ app.get('/api/stats/:child_id', async (req, res) => {
 app.get('/api/subscription/:parent_id', async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT * FROM subscriptions WHERE parent_id = $1 ORDER BY created_at DESC LIMIT 1',
+      'SELECT * FROM subscriptions WHERE parent_id = $1 ORDER BY started_at DESC LIMIT 1',
       [req.params.parent_id]
     );
-    if (result.rows.length === 0) return res.json({ status: 'none' });
+    if (result.rows.length === 0) return res.json({ status: 'none', expired: true });
     const sub = result.rows[0];
     const now = new Date();
     const expired = sub.expires_at && new Date(sub.expires_at) < now;
-    res.json({ ...sub, expired });
+    const daysLeft = sub.expires_at ? Math.max(0, Math.ceil((new Date(sub.expires_at) - now) / (1000 * 60 * 60 * 24))) : 0;
+    res.json({ ...sub, expired, days_left: daysLeft });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -149,8 +150,10 @@ app.get('/api/subscription/:parent_id', async (req, res) => {
 app.post('/api/payment/create', async (req, res) => {
   try {
     const { parent_id, plan, amount, return_url } = req.body;
-    // plan: 'monthly' = 299 руб, 'yearly' = 1990 руб
     const idempotenceKey = `${parent_id}-${plan}-${Date.now()}`;
+
+    let description = 'Подписка на 1 месяц';
+    if (plan === 'halfyear') description = 'Подписка на 6 месяцев';
 
     const response = await fetch('https://api.yookassa.ru/v3/payments', {
       method: 'POST',
@@ -161,9 +164,12 @@ app.post('/api/payment/create', async (req, res) => {
       },
       body: JSON.stringify({
         amount: { value: amount, currency: 'RUB' },
-        confirmation: { type: 'redirect', return_url: return_url || 'https://математикапростоматематика.рф/payment-success' },
+        confirmation: {
+          type: 'redirect',
+          return_url: return_url || 'https://математикапростоматематика.рф/payment-success'
+        },
         capture: true,
-        description: plan === 'monthly' ? 'Подписка на 1 месяц' : 'Подписка на 1 год',
+        description: description,
         metadata: { parent_id: String(parent_id), plan }
       })
     });
@@ -192,16 +198,34 @@ app.post('/api/payment/webhook', async (req, res) => {
       const plan = object.metadata.plan;
       const now = new Date();
       const expiresAt = new Date();
-      if (plan === 'monthly') expiresAt.setMonth(expiresAt.getMonth() + 1);
-      else if (plan === 'yearly') expiresAt.setFullYear(expiresAt.getFullYear() + 1);
 
-      await pool.query(
-        `UPDATE subscriptions SET plan = $1, status = 'active', started_at = $2, expires_at = $3 WHERE parent_id = $4`,
-        [plan, now, expiresAt, parentId]
+      if (plan === 'monthly') {
+        expiresAt.setMonth(expiresAt.getMonth() + 1);
+      } else if (plan === 'halfyear') {
+        expiresAt.setMonth(expiresAt.getMonth() + 6);
+      }
+
+      // Check if subscription exists
+      const existing = await pool.query(
+        'SELECT id FROM subscriptions WHERE parent_id = $1',
+        [parentId]
       );
+
+      if (existing.rows.length > 0) {
+        await pool.query(
+          `UPDATE subscriptions SET plan = $1, status = 'active', started_at = $2, expires_at = $3 WHERE parent_id = $4`,
+          [plan, now, expiresAt, parentId]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO subscriptions (parent_id, plan, status, started_at, expires_at) VALUES ($1, $2, 'active', $3, $4)`,
+          [parentId, plan, now, expiresAt]
+        );
+      }
     }
     res.json({ status: 'ok' });
   } catch (e) {
+    console.error('Webhook error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -215,6 +239,33 @@ app.get('/api/payment/status/:payment_id', async (req, res) => {
       }
     });
     const payment = await response.json();
+
+    // If payment succeeded, activate subscription
+    if (payment.status === 'succeeded' && payment.metadata) {
+      const parentId = payment.metadata.parent_id;
+      const plan = payment.metadata.plan;
+      const now = new Date();
+      const expiresAt = new Date();
+
+      if (plan === 'monthly') {
+        expiresAt.setMonth(expiresAt.getMonth() + 1);
+      } else if (plan === 'halfyear') {
+        expiresAt.setMonth(expiresAt.getMonth() + 6);
+      }
+
+      const existing = await pool.query(
+        'SELECT id, status FROM subscriptions WHERE parent_id = $1',
+        [parentId]
+      );
+
+      if (existing.rows.length > 0 && existing.rows[0].status !== 'active') {
+        await pool.query(
+          `UPDATE subscriptions SET plan = $1, status = 'active', started_at = $2, expires_at = $3 WHERE parent_id = $4`,
+          [plan, now, expiresAt, parentId]
+        );
+      }
+    }
+
     res.json(payment);
   } catch (e) {
     res.status(500).json({ error: e.message });
