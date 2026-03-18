@@ -75,11 +75,12 @@ app.post('/api/login', async function(req, res) {
 
 // ==================== CONTENT ====================
 
-app.get('/api/topics/:grade', async function(req, res) {
+app.get('/api/topics/:grade', async (req, res) => {
   try {
-    var result = await pool.query(
-      'SELECT t.*, s.name as subject_name, s.icon FROM topics t JOIN subjects s ON t.subject_id = s.id WHERE t.grade = $1 ORDER BY t.sort_order',
-      [req.params.grade]
+    const { grade } = req.params;
+    const result = await pool.query(
+      'SELECT id, title, description, theory, sort_order FROM topics WHERE grade = $1 ORDER BY sort_order',
+      [grade]
     );
     res.json(result.rows);
   } catch (e) {
