@@ -467,4 +467,44 @@ app.post('/api/interactive/batch', async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+// Admin page to load interactive tasks
+app.get('/api/admin/load-interactive', async (req, res) => {
+  if (req.query.key !== 'math2025admin') return res.status(403).send('forbidden');
+  const tasks = [
+    {topic_id:1,task_type:'match_pairs',sort_order:1,task_data:{instruction:'Соедини предмет с его формой',pairs:[{left:'Мяч',right:'Круглый'},{left:'Книга',right:'Прямоугольный'},{left:'Пирамидка',right:'Треугольный'},{left:'Кубик',right:'Квадратный'},{left:'Яйцо',right:'Овальный'}]}},
+    {topic_id:1,task_type:'match_pairs',sort_order:2,task_data:{instruction:'Соедини предмет с его цветом',pairs:[{left:'Солнце',right:'Жёлтый'},{left:'Трава',right:'Зелёный'},{left:'Небо',right:'Голубой'},{left:'Помидор',right:'Красный'},{left:'Баклажан',right:'Фиолетовый'}]}},
+    {topic_id:1,task_type:'true_false',sort_order:3,task_data:{instruction:'Правда или нет?',statements:[{text:'Мяч — круглый',answer:true,explanation:'Да! Мяч имеет круглую форму'},{text:'Книга — круглая',answer:false,explanation:'Нет! Книга прямоугольная'},{text:'Арбуз больше яблока',answer:true,explanation:'Верно! Арбуз намного больше'},{text:'Муравей больше слона',answer:false,explanation:'Нет! Слон — самое большое наземное животное'},{text:'Огурец и банан — оба длинные',answer:true,explanation:'Да! У них похожая вытянутая форма'}]}},
+    {topic_id:1,task_type:'classify',sort_order:4,task_data:{instruction:'Разложи предметы по группам',groups:['Круглые','Квадратные','Треугольные'],items:[{text:'Мяч',group:'Круглые'},{text:'Апельсин',group:'Круглые'},{text:'Кубик',group:'Квадратные'},{text:'Окно',group:'Квадратные'},{text:'Крыша дома',group:'Треугольные'},{text:'Ёлка',group:'Треугольные'}]}},
+    {topic_id:1,task_type:'fill_blank',sort_order:5,task_data:{instruction:'Вставь пропущенное слово',questions:[{text:'Мяч по форме — ___',answer:'круглый',hint:'Какой формы мяч?'},{text:'Помидор по цвету — ___',answer:'красный',hint:'Какого цвета помидор?'},{text:'Слон по размеру — ___',answer:'большой',hint:'Маленький или большой?'},{text:'Муравей по размеру — ___',answer:'маленький',hint:'Маленький или большой?'},{text:'Огурец по форме — ___',answer:'длинный',hint:'Какой формы огурец?'}]}},
+    {topic_id:2,task_type:'fill_blank',sort_order:1,task_data:{instruction:'Вставь пропущенное число',questions:[{text:'1, 2, ___, 4, 5',answer:'3',hint:'Какое число между 2 и 4?'},{text:'3, 4, 5, ___, 7',answer:'6',hint:'Какое число между 5 и 7?'},{text:'___, 8, 9, 10',answer:'7',hint:'Какое число перед 8?'},{text:'10, 9, ___, 7, 6',answer:'8',hint:'Считаем в обратном порядке'}]}},
+    {topic_id:2,task_type:'match_pairs',sort_order:2,task_data:{instruction:'Соедини число с количеством',pairs:[{left:'3',right:'🍎🍎🍎'},{left:'5',right:'🍎🍎🍎🍎🍎'},{left:'1',right:'🍎'},{left:'4',right:'🍎🍎🍎🍎'},{left:'2',right:'🍎🍎'}]}},
+    {topic_id:2,task_type:'true_false',sort_order:3,task_data:{instruction:'Правда или нет?',statements:[{text:'После числа 5 идёт число 6',answer:true,explanation:'Верно! 5, 6, 7...'},{text:'Перед числом 3 стоит число 4',answer:false,explanation:'Нет! Перед 3 стоит 2'},{text:'Число 7 больше числа 4',answer:true,explanation:'Да! 7 > 4'},{text:'Число 10 — самое маленькое',answer:false,explanation:'Нет! 10 — самое большое из чисел от 1 до 10'},{text:'Соседи числа 5 — это 4 и 6',answer:true,explanation:'Верно! 4, 5, 6'}]}},
+    {topic_id:2,task_type:'ordering',sort_order:4,task_data:{instruction:'Расставь числа от меньшего к большему',items:['5','2','8','1','4'],correct_order:['1','2','4','5','8']}},
+    {topic_id:3,task_type:'fill_blank',sort_order:1,task_data:{instruction:'Вставь пропущенное число',questions:[{text:'3 + ___ = 5',answer:'2',hint:'Сколько прибавить к 3?'},{text:'___ + 4 = 7',answer:'3',hint:'Какое число + 4 = 7?'},{text:'6 + ___ = 9',answer:'3',hint:'6 + ? = 9'},{text:'2 + 3 + ___ = 8',answer:'3',hint:'2+3=5, 5+?=8'}]}},
+    {topic_id:3,task_type:'match_pairs',sort_order:2,task_data:{instruction:'Соедини пример с ответом',pairs:[{left:'2 + 3',right:'5'},{left:'4 + 4',right:'8'},{left:'1 + 6',right:'7'},{left:'5 + 5',right:'10'},{left:'3 + 3',right:'6'}]}},
+    {topic_id:3,task_type:'true_false',sort_order:3,task_data:{instruction:'Правда или нет?',statements:[{text:'3 + 4 = 7',answer:true,explanation:'Верно!'},{text:'5 + 3 = 9',answer:false,explanation:'Нет! 5+3=8'},{text:'2 + 2 = 4',answer:true,explanation:'Верно!'},{text:'6 + 5 = 10',answer:false,explanation:'Нет! 6+5=11'},{text:'1 + 9 = 10',answer:true,explanation:'Верно!'}]}},
+    {topic_id:4,task_type:'fill_blank',sort_order:1,task_data:{instruction:'Вставь пропущенное число',questions:[{text:'7 − ___ = 4',answer:'3',hint:'7 минус сколько = 4?'},{text:'___ − 3 = 5',answer:'8',hint:'? − 3 = 5'},{text:'9 − ___ = 2',answer:'7',hint:'9 − ? = 2'},{text:'10 − ___ = 6',answer:'4',hint:'10 − ? = 6'}]}},
+    {topic_id:4,task_type:'match_pairs',sort_order:2,task_data:{instruction:'Соедини пример с ответом',pairs:[{left:'8 − 3',right:'5'},{left:'9 − 4',right:'5'},{left:'7 − 2',right:'5'},{left:'10 − 7',right:'3'},{left:'6 − 4',right:'2'}]}},
+    {topic_id:4,task_type:'true_false',sort_order:3,task_data:{instruction:'Правда или нет?',statements:[{text:'9 − 4 = 5',answer:true,explanation:'Верно!'},{text:'7 − 3 = 5',answer:false,explanation:'Нет! 7−3=4'},{text:'10 − 10 = 0',answer:true,explanation:'Верно!'},{text:'8 − 5 = 4',answer:false,explanation:'Нет! 8−5=3'},{text:'6 − 1 = 5',answer:true,explanation:'Верно!'}]}},
+    {topic_id:5,task_type:'fill_blank',sort_order:1,task_data:{instruction:'Вставь знак: >, < или =',questions:[{text:'5 ___ 3',answer:'>',hint:'5 больше или меньше 3?'},{text:'2 ___ 8',answer:'<',hint:'2 больше или меньше 8?'},{text:'4 ___ 4',answer:'=',hint:'Числа одинаковые'},{text:'9 ___ 7',answer:'>',hint:'9 больше или меньше 7?'}]}},
+    {topic_id:5,task_type:'true_false',sort_order:2,task_data:{instruction:'Правда или нет?',statements:[{text:'7 > 3',answer:true,explanation:'Верно! 7 больше 3'},{text:'5 < 2',answer:false,explanation:'Нет! 5 > 2'},{text:'8 = 8',answer:true,explanation:'Верно!'},{text:'4 > 9',answer:false,explanation:'Нет! 4 < 9'},{text:'10 > 1',answer:true,explanation:'Верно!'}]}},
+    {topic_id:5,task_type:'ordering',sort_order:3,task_data:{instruction:'Расставь числа от большего к меньшему',items:['3','9','1','7','5'],correct_order:['9','7','5','3','1']}}
+  ];
+  try {
+    let count = 0;
+    for (const t of tasks) {
+      await pool.query('INSERT INTO interactive_tasks (topic_id, task_type, task_data, sort_order) VALUES ($1,$2,$3,$4)', [t.topic_id, t.task_type, JSON.stringify(t.task_data), t.sort_order]);
+      count++;
+    }
+    res.json({ success: true, inserted: count, message: 'Темы 1-5 загружены!' });
+  } catch(e) { res.status(500).json({error: e.message}); }
+});
+Copy
+Шаг 2. Нажмите Commit changes и подождите 2–3 минуты.
+
+Шаг 3. Откройте в браузере:
+
+https://math-api-f70t.onrender.com/api/admin/load-interactive?key=math2025admin
+
+Должно показать: {"success":true,"inserted":18,"message":"Темы 1-5 загружены!"}
 app.listen(PORT, function() { console.log('API running on port ' + PORT); });
