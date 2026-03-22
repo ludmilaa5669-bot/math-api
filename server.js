@@ -818,5 +818,255 @@ app.get('/api/admin/load-tasks4', async (req, res) => {
     res.status(500).json({error:e.message});
   }
 });
+// Load interactive tasks for topics 31-40 (Grade 4)
+app.get('/api/admin/load-tasks5', async (req, res) => {
+  if (req.query.key !== 'math2025admin') return res.status(403).json({error: 'Forbidden'});
+  
+  const tasks = [
+    // Topic 31: Многозначные числа
+    {topic_id:31, task_type:'fill_blank', sort_order:1, task_data:{
+      instruction:'Впиши пропущенное',
+      questions:[
+        {text:'В числе 45 280 цифра 5 стоит в разряде ___',answer:'тысяч',hint:'4 — десятки тысяч, 5 — тысячи'},
+        {text:'Запиши число: 30 тысяч 7 сотен 4 единицы = ___',answer:'30704',hint:'30000 + 700 + 4'},
+        {text:'Сколько всего сотен в числе 8 300? ___',answer:'83',hint:'8300 ÷ 100 = ?'}
+      ]
+    }},
+    {topic_id:31, task_type:'ordering', sort_order:2, task_data:{
+      instruction:'Расставь числа от меньшего к большему',
+      items:['12045','12504','10245','15024','10452'],
+      correct_order:['10245','10452','12045','12504','15024']
+    }},
+    {topic_id:31, task_type:'true_false', sort_order:3, task_data:{
+      instruction:'Правда или ложь?',
+      statements:[
+        {text:'В числе 60 030 — 6 десятков тысяч',correct:true,explanation:'60 030: 6 в разряде десятков тысяч'},
+        {text:'Число 10 099 больше числа 10 909',correct:false,explanation:'10 099 < 10 909'},
+        {text:'В числе 5 070 ноль десятков',correct:false,explanation:'В числе 5 070: 7 десятков (07 в разрядах)'},
+        {text:'100 000 — это наименьшее шестизначное число',correct:true,explanation:'Верно, 99 999 — наибольшее пятизначное'}
+      ]
+    }},
+
+    // Topic 32: Сложение многозначных чисел
+    {topic_id:32, task_type:'fill_blank', sort_order:1, task_data:{
+      instruction:'Вычисли столбиком',
+      questions:[
+        {text:'24 536 + 18 475 = ___',answer:'43011',hint:'6+5=11, 3+7+1=11, 5+4+1=10, 4+8+1=13, 2+1+1=4'},
+        {text:'50 000 + 37 864 = ___',answer:'87864',hint:'Прибавляем к 50 000'},
+        {text:'7 089 + 2 911 = ___',answer:'10000',hint:'9+1=10, 8+1+1=10, 0+9+1=10, 7+2+1=10'}
+      ]
+    }},
+    {topic_id:32, task_type:'true_false', sort_order:2, task_data:{
+      instruction:'Проверь вычисления',
+      statements:[
+        {text:'15 678 + 24 322 = 40 000',correct:true,explanation:'8+2=10, 7+2+1=10, 6+3+1=10, 5+4+1=10, 1+2+1=4 → 40000'},
+        {text:'33 333 + 33 333 = 66 666',correct:true,explanation:'3+3=6 в каждом разряде → 66 666'},
+        {text:'48 750 + 21 350 = 69 100',correct:false,explanation:'48 750 + 21 350 = 70 100, а не 69 100'},
+        {text:'99 999 + 1 = 100 000',correct:true,explanation:'Верно, переход через все разряды'}
+      ]
+    }},
+    {topic_id:32, task_type:'match_pairs', sort_order:3, task_data:{
+      instruction:'Соедини пример с ответом',
+      pairs:[{left:'12 500 + 7 500',right:'20 000'},{left:'45 600 + 4 400',right:'50 000'},{left:'28 300 + 11 700',right:'40 000'},{left:'63 250 + 6 750',right:'70 000'},{left:'81 001 + 8 999',right:'90 000'}]
+    }},
+
+    // Topic 33: Вычитание многозначных чисел
+    {topic_id:33, task_type:'fill_blank', sort_order:1, task_data:{
+      instruction:'Вычисли столбиком',
+      questions:[
+        {text:'50 000 — 23 456 = ___',answer:'26544',hint:'Занимаем из старших разрядов'},
+        {text:'74 302 — 38 157 = ___',answer:'36145',hint:'Вычитай поразрядно с займом'},
+        {text:'100 000 — 1 = ___',answer:'99999',hint:'Все нули становятся девятками'}
+      ]
+    }},
+    {topic_id:33, task_type:'true_false', sort_order:2, task_data:{
+      instruction:'Проверь вычисления',
+      statements:[
+        {text:'40 000 — 15 678 = 24 322',correct:true,explanation:'Проверка: 24 322 + 15 678 = 40 000 ✓'},
+        {text:'65 000 — 28 500 = 37 500',correct:false,explanation:'65 000 — 28 500 = 36 500'},
+        {text:'90 010 — 45 005 = 45 005',correct:true,explanation:'Проверка: 45 005 + 45 005 = 90 010 ✓'},
+        {text:'80 000 — 1 = 79 099',correct:false,explanation:'80 000 — 1 = 79 999'}
+      ]
+    }},
+    {topic_id:33, task_type:'match_pairs', sort_order:3, task_data:{
+      instruction:'Соедини пример с ответом',
+      pairs:[{left:'70 000 — 35 000',right:'35 000'},{left:'50 000 — 12 500',right:'37 500'},{left:'100 000 — 55 555',right:'44 445'},{left:'60 000 — 24 680',right:'35 320'},{left:'45 000 — 19 999',right:'25 001'}]
+    }},
+
+    // Topic 34: Умножение многозначных чисел
+    {topic_id:34, task_type:'fill_blank', sort_order:1, task_data:{
+      instruction:'Вычисли',
+      questions:[
+        {text:'1 234 × 5 = ___',answer:'6170',hint:'4×5=20, 3×5+2=17, 2×5+1=11, 1×5+1=6'},
+        {text:'305 × 12 = ___',answer:'3660',hint:'305×2=610, 305×10=3050, 610+3050=3660'},
+        {text:'250 × 40 = ___',answer:'10000',hint:'25×4=100, приписать два нуля'}
+      ]
+    }},
+    {topic_id:34, task_type:'true_false', sort_order:2, task_data:{
+      instruction:'Проверь',
+      statements:[
+        {text:'2 500 × 4 = 10 000',correct:true,explanation:'2500 × 4 = 10 000 — верно'},
+        {text:'1 111 × 9 = 9 999',correct:true,explanation:'1111 × 9 = 9999 — верно'},
+        {text:'450 × 20 = 9 500',correct:false,explanation:'450 × 20 = 9 000, а не 9 500'},
+        {text:'123 × 100 = 12 300',correct:true,explanation:'При умножении на 100 приписываем два нуля'}
+      ]
+    }},
+    {topic_id:34, task_type:'match_pairs', sort_order:3, task_data:{
+      instruction:'Соедини пример с ответом',
+      pairs:[{left:'300 × 30',right:'9 000'},{left:'125 × 8',right:'1 000'},{left:'2 000 × 5',right:'10 000'},{left:'750 × 4',right:'3 000'},{left:'1 500 × 6',right:'9 000'}]
+    }},
+
+    // Topic 35: Деление многозначных чисел
+    {topic_id:35, task_type:'fill_blank', sort_order:1, task_data:{
+      instruction:'Вычисли',
+      questions:[
+        {text:'8 640 ÷ 4 = ___',answer:'2160',hint:'8÷4=2, 6÷4=1(ост.2), 24÷4=6, 0÷4=0'},
+        {text:'7 500 ÷ 25 = ___',answer:'300',hint:'75 ÷ 25 = 3, приписать два нуля'},
+        {text:'10 000 ÷ 8 = ___',answer:'1250',hint:'10÷8=1(ост.2), 20÷8=2(ост.4), 40÷8=5, 0'}
+      ]
+    }},
+    {topic_id:35, task_type:'true_false', sort_order:2, task_data:{
+      instruction:'Проверь',
+      statements:[
+        {text:'9 000 ÷ 6 = 1 500',correct:true,explanation:'1500 × 6 = 9000 ✓'},
+        {text:'4 800 ÷ 12 = 400',correct:true,explanation:'400 × 12 = 4800 ✓'},
+        {text:'6 300 ÷ 9 = 600',correct:false,explanation:'6 300 ÷ 9 = 700'},
+        {text:'15 000 ÷ 50 = 300',correct:true,explanation:'300 × 50 = 15 000 ✓'}
+      ]
+    }},
+    {topic_id:35, task_type:'match_pairs', sort_order:3, task_data:{
+      instruction:'Соедини пример с ответом',
+      pairs:[{left:'12 000 ÷ 4',right:'3 000'},{left:'8 100 ÷ 9',right:'900'},{left:'5 600 ÷ 8',right:'700'},{left:'24 000 ÷ 60',right:'400'},{left:'3 600 ÷ 12',right:'300'}]
+    }},
+
+    // Topic 36: Дроби
+    {topic_id:36, task_type:'fill_blank', sort_order:1, task_data:{
+      instruction:'Впиши ответ',
+      questions:[
+        {text:'3/5 + 1/5 = ___',answer:'4/5',hint:'Складываем числители: 3+1=4, знаменатель тот же'},
+        {text:'7/8 — 3/8 = ___',answer:'4/8',hint:'Вычитаем числители: 7-3=4. Можно сократить до 1/2'},
+        {text:'Переведи 2 целых 3/4 в неправильную дробь: ___',answer:'11/4',hint:'2 × 4 + 3 = 11, знаменатель 4'}
+      ]
+    }},
+    {topic_id:36, task_type:'true_false', sort_order:2, task_data:{
+      instruction:'Правда или ложь?',
+      statements:[
+        {text:'5/6 > 4/6',correct:true,explanation:'При одинаковом знаменателе больше дробь с большим числителем'},
+        {text:'1/3 = 2/6',correct:true,explanation:'1/3 × 2/2 = 2/6 — верно'},
+        {text:'Неправильная дробь всегда больше 1',correct:false,explanation:'Неправильная дробь больше или равна 1 (5/5 = 1)'},
+        {text:'3/4 + 1/4 = 4/8',correct:false,explanation:'3/4 + 1/4 = 4/4 = 1, а не 4/8'}
+      ]
+    }},
+    {topic_id:36, task_type:'match_pairs', sort_order:3, task_data:{
+      instruction:'Соедини равные дроби',
+      pairs:[{left:'1/2',right:'3/6'},{left:'2/3',right:'4/6'},{left:'3/4',right:'6/8'},{left:'1/5',right:'2/10'},{left:'2/5',right:'4/10'}]
+    }},
+
+    // Topic 37: Задачи на движение
+    {topic_id:37, task_type:'fill_blank', sort_order:1, task_data:{
+      instruction:'Реши задачу',
+      questions:[
+        {text:'Скорость 60 км/ч, время 3 часа. Расстояние: ___',answer:'180 км',hint:'S = V × t = 60 × 3'},
+        {text:'Расстояние 240 км, скорость 80 км/ч. Время: ___',answer:'3 часа',hint:'t = S ÷ V = 240 ÷ 80'},
+        {text:'Расстояние 150 км, время 5 часов. Скорость: ___',answer:'30 км/ч',hint:'V = S ÷ t = 150 ÷ 5'}
+      ]
+    }},
+    {topic_id:37, task_type:'true_false', sort_order:2, task_data:{
+      instruction:'Правда или ложь?',
+      statements:[
+        {text:'Если скорость 50 км/ч, за 4 часа проедешь 200 км',correct:true,explanation:'50 × 4 = 200'},
+        {text:'Два поезда навстречу (60 и 80 км/ч) сближаются со скоростью 140 км/ч',correct:true,explanation:'При встречном движении скорости складываются'},
+        {text:'Если увеличить скорость, время пути увеличится',correct:false,explanation:'При увеличении скорости время уменьшается'},
+        {text:'За 2 часа при скорости 75 км/ч проедешь 140 км',correct:false,explanation:'75 × 2 = 150, а не 140'}
+      ]
+    }},
+    {topic_id:37, task_type:'match_pairs', sort_order:3, task_data:{
+      instruction:'Соедини данные с ответом',
+      pairs:[{left:'V=40, t=5',right:'S=200 км'},{left:'S=360, V=90',right:'t=4 ч'},{left:'S=100, t=2',right:'V=50 км/ч'},{left:'V=70, t=3',right:'S=210 км'},{left:'S=480, t=6',right:'V=80 км/ч'}]
+    }},
+
+    // Topic 38: Геометрия: углы и фигуры
+    {topic_id:38, task_type:'match_pairs', sort_order:1, task_data:{
+      instruction:'Соедини фигуру с описанием',
+      pairs:[{left:'Прямой угол',right:'90°'},{left:'Острый угол',right:'Меньше 90°'},{left:'Тупой угол',right:'Больше 90°'},{left:'Развёрнутый угол',right:'180°'},{left:'Равносторонний треугольник',right:'Все стороны равны'}]
+    }},
+    {topic_id:38, task_type:'true_false', sort_order:2, task_data:{
+      instruction:'Правда или ложь?',
+      statements:[
+        {text:'В прямоугольнике все углы прямые',correct:true,explanation:'В прямоугольнике 4 прямых угла по 90°'},
+        {text:'Диаметр окружности равен двум радиусам',correct:true,explanation:'d = 2r — верно'},
+        {text:'В треугольнике может быть два тупых угла',correct:false,explanation:'Сумма углов = 180°, два тупых дали бы больше 180°'},
+        {text:'Квадрат — это частный случай прямоугольника',correct:true,explanation:'Квадрат — прямоугольник с равными сторонами'}
+      ]
+    }},
+    {topic_id:38, task_type:'fill_blank', sort_order:3, task_data:{
+      instruction:'Впиши ответ',
+      questions:[
+        {text:'Сумма углов треугольника = ___°',answer:'180',hint:'В любом треугольнике сумма = 180°'},
+        {text:'Если два угла треугольника 60° и 80°, третий = ___°',answer:'40',hint:'180 — 60 — 80 = ?'},
+        {text:'У квадрата ___ оси симметрии',answer:'4',hint:'Горизонтальная, вертикальная и две диагональные'}
+      ]
+    }},
+
+    // Topic 39: Величины и их преобразование
+    {topic_id:39, task_type:'fill_blank', sort_order:1, task_data:{
+      instruction:'Переведи единицы',
+      questions:[
+        {text:'5 км = ___ м',answer:'5000',hint:'1 км = 1000 м'},
+        {text:'3 т 200 кг = ___ кг',answer:'3200',hint:'3 × 1000 + 200'},
+        {text:'2 ч 15 мин = ___ мин',answer:'135',hint:'2 × 60 + 15'}
+      ]
+    }},
+    {topic_id:39, task_type:'true_false', sort_order:2, task_data:{
+      instruction:'Правда или ложь?',
+      statements:[
+        {text:'1 кв.м = 100 кв.дм',correct:true,explanation:'1 м = 10 дм, площадь: 10 × 10 = 100 кв.дм'},
+        {text:'3 500 г = 3 кг 5 г',correct:false,explanation:'3 500 г = 3 кг 500 г'},
+        {text:'48 месяцев = 4 года',correct:true,explanation:'48 ÷ 12 = 4'},
+        {text:'1 сутки = 1 440 минут',correct:true,explanation:'24 × 60 = 1 440'}
+      ]
+    }},
+    {topic_id:39, task_type:'match_pairs', sort_order:3, task_data:{
+      instruction:'Соедини равные величины',
+      pairs:[{left:'2 км',right:'2 000 м'},{left:'5 т',right:'5 000 кг'},{left:'3 ч',right:'180 мин'},{left:'4 кв.м',right:'400 кв.дм'},{left:'1 век',right:'100 лет'}]
+    }},
+
+    // Topic 40: Составные задачи
+    {topic_id:40, task_type:'fill_blank', sort_order:1, task_data:{
+      instruction:'Реши задачу',
+      questions:[
+        {text:'В школе 12 классов по 25 учеников. На экскурсию поехали 4 класса. Сколько учеников поехали? ___',answer:'100',hint:'4 × 25 = 100'},
+        {text:'Фермер собрал 840 кг яблок и разложил поровну в 6 ящиков. 2 ящика продал. Сколько кг осталось? ___',answer:'560',hint:'1) 840÷6=140 кг в ящике; 2) 140×2=280 продал; 3) 840-280=560'},
+        {text:'Поезд проехал 3 ч по 80 км/ч и 2 ч по 95 км/ч. Общий путь: ___',answer:'430 км',hint:'1) 80×3=240; 2) 95×2=190; 3) 240+190=430'}
+      ]
+    }},
+    {topic_id:40, task_type:'ordering', sort_order:2, task_data:{
+      instruction:'Расставь шаги решения: «В магазин привезли 5 коробок по 48 кг и 3 коробки по 36 кг. Всё разложили поровну на 12 полок. Сколько кг на каждой?»',
+      items:['5 × 48 = 240 кг','3 × 36 = 108 кг','240 + 108 = 348 кг','348 ÷ 12 = 29 кг'],
+      correct_order:['5 × 48 = 240 кг','3 × 36 = 108 кг','240 + 108 = 348 кг','348 ÷ 12 = 29 кг']
+    }},
+    {topic_id:40, task_type:'true_false', sort_order:3, task_data:{
+      instruction:'Проверь решение',
+      statements:[
+        {text:'Задача: 6 полок по 15 книг, убрали 30. Ответ: 60 книг',correct:true,explanation:'6×15=90, 90-30=60 ✓'},
+        {text:'Задача: скорость 45 км/ч, время 4 ч, расстояние 170 км',correct:false,explanation:'45 × 4 = 180, а не 170'},
+        {text:'Задача: 3 пакета по 2 кг 500 г. Всего 7 кг 500 г',correct:true,explanation:'2500 × 3 = 7500 г = 7 кг 500 г ✓'},
+        {text:'Задача: купили 8 тетрадей по 15 руб и 3 ручки по 20 руб. Всего 170 руб',correct:false,explanation:'8×15=120, 3×20=60, 120+60=180, а не 170'}
+      ]
+    }}
+  ];
+
+  try {
+    await pool.query("CREATE TABLE IF NOT EXISTS interactive_tasks (id SERIAL PRIMARY KEY, topic_id INTEGER REFERENCES topics(id), task_type VARCHAR(30) NOT NULL, task_data JSONB NOT NULL, sort_order INTEGER DEFAULT 0)");
+    let count = 0;
+    for (const t of tasks) {
+      await pool.query('INSERT INTO interactive_tasks (topic_id, task_type, task_data, sort_order) VALUES ($1,$2,$3,$4)', [t.topic_id, t.task_type, JSON.stringify(t.task_data), t.sort_order]);
+      count++;
+    }
+    res.json({success:true, inserted:count, message:'Темы 31-40 загружены!'});
+  } catch(e) {
+    res.status(500).json({error:e.message});
+  }
+});
 
 app.listen(PORT, function() { console.log('API running on port ' + PORT); });
