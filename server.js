@@ -467,7 +467,7 @@ app.post('/api/interactive/batch', async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
-Copyapp.get('/api/admin/load-tasks', async (req, res) => {
+app.get('/api/admin/load-tasks', async (req, res) => {
   if (req.query.key !== 'math2025admin') return res.status(403).send('forbidden');
   try {
     var tasks = [];
