@@ -1112,5 +1112,155 @@ app.get('/api/admin/fix-tf', async (req, res) => {
     res.status(500).json({error:e.message});
   }
 });
+// Parent statistics endpoints
+
+// Get child's test results summary
+app.get('/api/stats/child/:childId', async (req, res) => {
+  try {
+    const childId = req.params.childId;
+    
+    // Get child info
+    const childResult = await pool.query('SELECT * FROM children WHERE id = $1', [childId]);
+    if (childResult.rows.length === 0) {
+      return res.status(404).json({error: 'Child not found'});
+    }
+    const child = childResult.rows[0];
+    
+    // Get all test results for this child
+    const results = await pool.query(
+      `SELECT tr.*, t.title as topic_title, t.description as topic_description, t.grade 
+       FROM test_results tr 
+       JOIN topics t ON tr.topic_id = t.id 
+       WHERE tr.child_id = $1 
+       ORDER BY tr.completed_at DESC`,
+      [childId]
+    );
+    
+    // Calculate summary stats
+    const totalTests = results.rows.length;
+    const uniqueTopics = [...new Set(results.rows.map(r => r.topic_id))].length;
+    const totalStars = results.rows.reduce((sum, r) => sum + (r.stars || 0), 0);
+    const avgScore = totalTests > 0 
+      ? Math.round(results.rows.reduce((sum, r) => sum + (r.score || 0), 0) / totalTests) 
+      : 0;
+    
+    // Best and worst topics
+    const topicScores = {};
+    results.rows.forEach(r => {
+      if (!topicScores[r.topic_id] || r.score > topicScores[r.topic_id].score) {
+        topicScores[r.topic_id] = {
+          topic_id: r.topic_id,
+          title: r.topic_title,
+          score: r.score,
+          stars: r.stars,
+          grade: r.grade
+        };
+      }
+    });
+    
+    const topicList = Object.values(topicScores);
+    const bestTopics = [...topicList].sort((a,b) => b.score - a.score).slice(0, 3);
+    const worstTopics = [...topicList].sort((a,b) => a.score - b.score).slice(0, 3);
+    
+    // Activity by date (last 30 days)
+    const activity = await pool.query(
+      `SELECT DATE(completed_at) as date, COUNT(*) as tests_count, 
+              AVG(score) as avg_score, SUM(stars) as stars_earned
+       FROM test_results 
+       WHERE child_id = $1 AND completed_at > NOW() - INTERVAL '30 days'
+       GROUP BY DATE(completed_at) 
+       ORDER BY date DESC`,
+      [childId]
+    );
+    
+    // Grade progress
+    const gradeProgress = await pool.query(
+      `SELECT t.grade, 
+              COUNT(DISTINCT tr.topic_id) as topics_completed,
+              (SELECT COUNT(*) FROM topics WHERE grade = t.grade) as total_topics,
+              ROUND(AVG(tr.score)) as avg_score
+       FROM test_results tr 
+       JOIN topics t ON tr.topic_id = t.id 
+       WHERE tr.child_id = $1
+       GROUP BY t.grade 
+       ORDER BY t.grade`,
+      [childId]
+    );
+    
+    res.json({
+      child: {
+        id: child.id,
+        name: child.name,
+        grade: child.grade
+      },
+      summary: {
+        total_tests: totalTests,
+        unique_topics: uniqueTopics,
+        total_stars: totalStars,
+        avg_score: avgScore
+      },
+      best_topics: bestTopics,
+      weak_topics: worstTopics,
+      recent_activity: activity.rows,
+      grade_progress: gradeProgress.rows,
+      all_results: results.rows
+    });
+  } catch(e) {
+    res.status(500).json({error: e.message});
+  }
+});
+
+// Get topics progress for a specific grade
+app.get('/api/stats/child/:childId/grade/:grade', async (req, res) => {
+  try {
+    const {childId, grade} = req.params;
+    
+    const topics = await pool.query(
+      `SELECT t.id, t.title, t.description, t.sort_order,
+              tr.score as best_score, tr.stars as best_stars, tr.completed_at as last_attempt,
+              (SELECT COUNT(*) FROM test_results WHERE child_id = $1 AND topic_id = t.id) as attempts
+       FROM topics t
+       LEFT JOIN LATERAL (
+         SELECT score, stars, completed_at 
+         FROM test_results 
+         WHERE child_id = $1 AND topic_id = t.id 
+         ORDER BY score DESC LIMIT 1
+       ) tr ON true
+       WHERE t.grade = $2
+       ORDER BY t.sort_order`,
+      [childId, grade]
+    );
+    
+    res.json({
+      grade: parseInt(grade),
+      topics: topics.rows
+    });
+  } catch(e) {
+    res.status(500).json({error: e.message});
+  }
+});
+
+// Get detailed results for a specific topic
+app.get('/api/stats/child/:childId/topic/:topicId', async (req, res) => {
+  try {
+    const {childId, topicId} = req.params;
+    
+    const results = await pool.query(
+      `SELECT tr.*, t.title as topic_title
+       FROM test_results tr 
+       JOIN topics t ON tr.topic_id = t.id 
+       WHERE tr.child_id = $1 AND tr.topic_id = $2
+       ORDER BY tr.completed_at DESC`,
+      [childId, topicId]
+    );
+    
+    res.json({
+      topic_id: parseInt(topicId),
+      attempts: results.rows
+    });
+  } catch(e) {
+    res.status(500).json({error: e.message});
+  }
+});
 
 app.listen(PORT, function() { console.log('API running on port ' + PORT); });
