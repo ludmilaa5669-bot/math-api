@@ -1318,5 +1318,21 @@ app.get('/api/stats/v2/child/:childId', async (req, res) => {
     res.json({child:{id:child.id,name:child.name,grade:child.grade},summary:{total_tests:totalTests,unique_topics:uniqueTopics,total_stars:totalStars,avg_score:avgScore},best_topics:best,weak_topics:worst,recent_activity:[],grade_progress:gp,all_results:rows});
   } catch(e){res.status(500).json({error:e.message});}
 });
+// Fix: recalculate scores as percentages
+app.get('/api/admin/fix-scores', async (req, res) => {
+  if (req.query.key !== 'math2025admin') return res.status(403).json({error:'Forbidden'});
+  try {
+    // Update all scores where score < 26 (likely raw correct answers, not percentage)
+    const results = await pool.query('SELECT id, score, total_questions FROM test_results WHERE score < 26 AND total_questions > 0');
+    let fixed = 0;
+    for (const r of results.rows) {
+      const pct = Math.round((r.score / r.total_questions) * 100);
+      const stars = pct >= 95 ? 3 : pct >= 85 ? 2 : pct >= 70 ? 1 : 0;
+      await pool.query('UPDATE test_results SET score = $1, stars = $2 WHERE id = $3', [pct, stars, r.id]);
+      fixed++;
+    }
+    res.json({success:true, fixed, message:'Scores converted to percentages'});
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
 
 app.listen(PORT, function() { console.log('API running on port ' + PORT); });
