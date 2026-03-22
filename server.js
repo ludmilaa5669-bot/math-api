@@ -1262,5 +1262,61 @@ app.get('/api/stats/child/:childId/topic/:topicId', async (req, res) => {
     res.status(500).json({error: e.message});
   }
 });
+// Fix tables for stats
+app.get('/api/admin/fix-results', async (req, res) => {
+  if (req.query.key !== 'math2025admin') return res.status(403).json({error:'Forbidden'});
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS test_results (id SERIAL PRIMARY KEY, child_id INTEGER, topic_id INTEGER, score INTEGER DEFAULT 0, total_questions INTEGER DEFAULT 25, correct_answers INTEGER DEFAULT 0, stars INTEGER DEFAULT 0, completed_at TIMESTAMP DEFAULT NOW())`);
+    try { await pool.query('ALTER TABLE test_results ADD COLUMN IF NOT EXISTS stars INTEGER DEFAULT 0'); } catch(e) {}
+    try { await pool.query('ALTER TABLE test_results ADD COLUMN IF NOT EXISTS child_id INTEGER'); } catch(e) {}
+    await pool.query(`CREATE TABLE IF NOT EXISTS children (id SERIAL PRIMARY KEY, user_id INTEGER, name VARCHAR(100), grade INTEGER DEFAULT 1, created_at TIMESTAMP DEFAULT NOW())`);
+    const cols = await pool.query("SELECT column_name FROM information_schema.columns WHERE table_name = 'test_results' ORDER BY ordinal_position");
+    const children = await pool.query('SELECT * FROM children');
+    const results = await pool.query('SELECT * FROM test_results LIMIT 5');
+    res.json({success:true, columns:cols.rows.map(r=>r.column_name), children_count:children.rows.length, children:children.rows, results_count:results.rows.length, sample_results:results.rows});
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
+
+// Parent stats v2 (safe)
+app.get('/api/stats/v2/child/:childId', async (req, res) => {
+  try {
+    const childId = req.params.childId;
+    let child = {id:childId, name:'Ученик', grade:2};
+    try {
+      const cr = await pool.query('SELECT * FROM children WHERE id=$1',[childId]);
+      if(cr.rows.length>0) child=cr.rows[0];
+    } catch(e){}
+    let cols=[];
+    try {
+      const colR = await pool.query("SELECT column_name FROM information_schema.columns WHERE table_name='test_results'");
+      cols=colR.rows.map(r=>r.column_name);
+    } catch(e){}
+    const hasStars=cols.includes('stars'), hasChildId=cols.includes('child_id'), hasScore=cols.includes('score');
+    let rows=[];
+    try {
+      const sf=`tr.id,tr.topic_id,${hasScore?'tr.score':'0 as score'},${hasStars?'tr.stars':'0 as stars'},tr.completed_at,t.title as topic_title,t.grade`;
+      if(hasChildId){
+        const r=await pool.query(`SELECT ${sf} FROM test_results tr JOIN topics t ON tr.topic_id=t.id WHERE tr.child_id=$1 ORDER BY tr.completed_at DESC`,[childId]);
+        rows=r.rows;
+      } else {
+        const r=await pool.query(`SELECT ${sf} FROM test_results tr JOIN topics t ON tr.topic_id=t.id ORDER BY tr.completed_at DESC`);
+        rows=r.rows;
+      }
+    } catch(e){console.log('Stats query error:',e.message);}
+    const totalTests=rows.length;
+    const uniqueTopics=[...new Set(rows.map(r=>r.topic_id))].length;
+    const totalStars=rows.reduce((s,r)=>s+(parseInt(r.stars)||0),0);
+    const avgScore=totalTests>0?Math.round(rows.reduce((s,r)=>s+(parseInt(r.score)||0),0)/totalTests):0;
+    const topicScores={};
+    rows.forEach(r=>{const sc=parseInt(r.score)||0;if(!topicScores[r.topic_id]||sc>topicScores[r.topic_id].score)topicScores[r.topic_id]={topic_id:r.topic_id,title:r.topic_title,score:sc,stars:parseInt(r.stars)||0,grade:r.grade};});
+    const tl=Object.values(topicScores);
+    const best=[...tl].sort((a,b)=>b.score-a.score).slice(0,3);
+    const worst=[...tl].sort((a,b)=>a.score-b.score).slice(0,3);
+    const gm={};
+    rows.forEach(r=>{if(!gm[r.grade])gm[r.grade]={topics:new Set(),scores:[]};gm[r.grade].topics.add(r.topic_id);gm[r.grade].scores.push(parseInt(r.score)||0);});
+    const gp=Object.entries(gm).map(([g,d])=>({grade:parseInt(g),topics_completed:d.topics.size,total_topics:10,avg_score:Math.round(d.scores.reduce((a,b)=>a+b,0)/d.scores.length)})).sort((a,b)=>a.grade-b.grade);
+    res.json({child:{id:child.id,name:child.name,grade:child.grade},summary:{total_tests:totalTests,unique_topics:uniqueTopics,total_stars:totalStars,avg_score:avgScore},best_topics:best,weak_topics:worst,recent_activity:[],grade_progress:gp,all_results:rows});
+  } catch(e){res.status(500).json({error:e.message});}
+});
 
 app.listen(PORT, function() { console.log('API running on port ' + PORT); });
