@@ -567,5 +567,256 @@ app.get('/api/admin/load-tasks3', async (req, res) => {
     res.json({ success: true, inserted: count, message: 'Topics 11-20 loaded!' });
   } catch(e) { res.status(500).json({error: e.message}); }
 });
+// Load interactive tasks for topics 21-30 (Grade 3)
+app.get('/api/admin/load-tasks4', async (req, res) => {
+  if (req.query.key !== 'math2025admin') return res.status(403).json({error: 'Forbidden'});
+  
+  const tasks = [
+    // Topic 21: Таблица умножения (повторение)
+    {topic_id:21, task_type:'match_pairs', sort_order:1, task_data:{
+      instruction:'Соедини пример с ответом',
+      pairs:[{left:'7 × 8',right:'56'},{left:'6 × 9',right:'54'},{left:'8 × 4',right:'32'},{left:'9 × 7',right:'63'},{left:'5 × 6',right:'30'}]
+    }},
+    {topic_id:21, task_type:'true_false', sort_order:2, task_data:{
+      instruction:'Правда или ложь?',
+      statements:[
+        {text:'6 × 7 = 42',correct:true,explanation:'6 × 7 = 42 — верно'},
+        {text:'8 × 8 = 62',correct:false,explanation:'8 × 8 = 64, а не 62'},
+        {text:'9 × 5 = 45',correct:true,explanation:'9 × 5 = 45 — верно'},
+        {text:'7 × 7 = 47',correct:false,explanation:'7 × 7 = 49, а не 47'}
+      ]
+    }},
+    {topic_id:21, task_type:'fill_blank', sort_order:3, task_data:{
+      instruction:'Впиши пропущенное число',
+      questions:[
+        {text:'8 × ___ = 72',answer:'9',hint:'Какое число при умножении на 8 даёт 72?'},
+        {text:'___ × 6 = 48',answer:'8',hint:'Какое число при умножении на 6 даёт 48?'},
+        {text:'7 × ___ = 63',answer:'9',hint:'Какое число при умножении на 7 даёт 63?'}
+      ]
+    }},
+
+    // Topic 22: Внетабличное умножение и деление
+    {topic_id:22, task_type:'fill_blank', sort_order:1, task_data:{
+      instruction:'Вычисли и впиши ответ',
+      questions:[
+        {text:'14 × 6 = ___',answer:'84',hint:'14 × 6: 10×6=60, 4×6=24, 60+24=?'},
+        {text:'96 ÷ 4 = ___',answer:'24',hint:'96 ÷ 4: 80÷4=20, 16÷4=4, 20+4=?'},
+        {text:'23 × 3 = ___',answer:'69',hint:'23 × 3: 20×3=60, 3×3=9, 60+9=?'}
+      ]
+    }},
+    {topic_id:22, task_type:'true_false', sort_order:2, task_data:{
+      instruction:'Правда или ложь?',
+      statements:[
+        {text:'15 × 4 = 60',correct:true,explanation:'15 × 4 = 60 — верно'},
+        {text:'72 ÷ 6 = 11',correct:false,explanation:'72 ÷ 6 = 12, а не 11'},
+        {text:'25 × 3 = 75',correct:true,explanation:'25 × 3 = 75 — верно'},
+        {text:'84 ÷ 7 = 13',correct:false,explanation:'84 ÷ 7 = 12, а не 13'}
+      ]
+    }},
+    {topic_id:22, task_type:'match_pairs', sort_order:3, task_data:{
+      instruction:'Соедини пример с ответом',
+      pairs:[{left:'13 × 5',right:'65'},{left:'96 ÷ 8',right:'12'},{left:'17 × 4',right:'68'},{left:'78 ÷ 6',right:'13'},{left:'24 × 3',right:'72'}]
+    }},
+
+    // Topic 23: Числа до 1000
+    {topic_id:23, task_type:'fill_blank', sort_order:1, task_data:{
+      instruction:'Впиши пропущенное',
+      questions:[
+        {text:'В числе 547 ___ сотен, ___ десятков, ___ единиц',answer:'5, 4, 7',hint:'Разложи число по разрядам'},
+        {text:'300 + 40 + 8 = ___',answer:'348',hint:'Сложи сотни, десятки и единицы'},
+        {text:'Число, в котором 6 сотен и 2 единицы: ___',answer:'602',hint:'6 сотен = 600, 0 десятков, 2 единицы'}
+      ]
+    }},
+    {topic_id:23, task_type:'ordering', sort_order:2, task_data:{
+      instruction:'Расставь числа от меньшего к большему',
+      items:['305','350','503','530','253'],
+      correct_order:['253','305','350','503','530']
+    }},
+    {topic_id:23, task_type:'true_false', sort_order:3, task_data:{
+      instruction:'Правда или ложь?',
+      statements:[
+        {text:'В числе 408 ноль десятков',correct:true,explanation:'408 = 4 сотни, 0 десятков, 8 единиц'},
+        {text:'Число 670 больше числа 706',correct:false,explanation:'670 < 706'},
+        {text:'999 — наибольшее трёхзначное число',correct:true,explanation:'Верно, следующее — 1000'},
+        {text:'В числе 230 — 23 десятка',correct:true,explanation:'230 ÷ 10 = 23 — верно'}
+      ]
+    }},
+
+    // Topic 24: Сложение и вычитание до 1000
+    {topic_id:24, task_type:'fill_blank', sort_order:1, task_data:{
+      instruction:'Вычисли столбиком и впиши ответ',
+      questions:[
+        {text:'345 + 278 = ___',answer:'623',hint:'5+8=13, пишем 3, переносим 1; 4+7+1=12, пишем 2, переносим 1; 3+2+1=6'},
+        {text:'602 — 357 = ___',answer:'245',hint:'Занимаем: 12-7=5, 9-5=4, 5-3=2'},
+        {text:'450 + 367 = ___',answer:'817',hint:'0+7=7, 5+6=11, 4+3+1=8'}
+      ]
+    }},
+    {topic_id:24, task_type:'true_false', sort_order:2, task_data:{
+      instruction:'Проверь вычисления',
+      statements:[
+        {text:'234 + 567 = 801',correct:true,explanation:'4+7=11, 3+6+1=10, 2+5+1=8 → 801'},
+        {text:'500 — 248 = 262',correct:false,explanation:'500 — 248 = 252, а не 262'},
+        {text:'189 + 311 = 500',correct:true,explanation:'9+1=10, 8+1+1=10, 1+3+1=5 → 500'},
+        {text:'703 — 456 = 257',correct:false,explanation:'703 — 456 = 247, а не 257'}
+      ]
+    }},
+    {topic_id:24, task_type:'match_pairs', sort_order:3, task_data:{
+      instruction:'Соедини пример с ответом',
+      pairs:[{left:'256 + 144',right:'400'},{left:'800 — 350',right:'450'},{left:'475 + 325',right:'800'},{left:'631 — 287',right:'344'},{left:'199 + 201',right:'400'}]
+    }},
+
+    // Topic 25: Умножение и деление на однозначное число
+    {topic_id:25, task_type:'fill_blank', sort_order:1, task_data:{
+      instruction:'Вычисли и впиши ответ',
+      questions:[
+        {text:'124 × 3 = ___',answer:'372',hint:'4×3=12, пишем 2, переносим 1; 2×3+1=7; 1×3=3'},
+        {text:'936 ÷ 4 = ___',answer:'234',hint:'9÷4=2(ост.1), 13÷4=3(ост.1), 16÷4=4'},
+        {text:'207 × 5 = ___',answer:'1035',hint:'7×5=35, 0×5+3=3, 2×5=10'}
+      ]
+    }},
+    {topic_id:25, task_type:'true_false', sort_order:2, task_data:{
+      instruction:'Правда или ложь?',
+      statements:[
+        {text:'315 × 2 = 630',correct:true,explanation:'315 × 2 = 630 — верно'},
+        {text:'848 ÷ 4 = 202',correct:false,explanation:'848 ÷ 4 = 212, а не 202'},
+        {text:'150 × 6 = 900',correct:true,explanation:'150 × 6 = 900 — верно'},
+        {text:'729 ÷ 9 = 81',correct:true,explanation:'729 ÷ 9 = 81 — верно'}
+      ]
+    }},
+    {topic_id:25, task_type:'match_pairs', sort_order:3, task_data:{
+      instruction:'Соедини пример с ответом',
+      pairs:[{left:'256 × 3',right:'768'},{left:'420 ÷ 6',right:'70'},{left:'185 × 4',right:'740'},{left:'672 ÷ 8',right:'84'},{left:'301 × 7',right:'2107'}]
+    }},
+
+    // Topic 26: Площадь и периметр
+    {topic_id:26, task_type:'fill_blank', sort_order:1, task_data:{
+      instruction:'Вычисли и впиши ответ',
+      questions:[
+        {text:'Периметр прямоугольника со сторонами 12 см и 8 см: P = ___',answer:'40 см',hint:'P = (12 + 8) × 2 = 20 × 2'},
+        {text:'Площадь прямоугольника 7 см × 5 см: S = ___',answer:'35 кв.см',hint:'S = 7 × 5'},
+        {text:'Сторона квадрата 9 см. Площадь: S = ___',answer:'81 кв.см',hint:'S = 9 × 9'}
+      ]
+    }},
+    {topic_id:26, task_type:'true_false', sort_order:2, task_data:{
+      instruction:'Правда или ложь?',
+      statements:[
+        {text:'Периметр квадрата со стороной 6 см равен 24 см',correct:true,explanation:'P = 6 × 4 = 24 см'},
+        {text:'Площадь измеряется в сантиметрах',correct:false,explanation:'Площадь измеряется в квадратных сантиметрах (кв.см)'},
+        {text:'Два прямоугольника с одинаковым периметром всегда имеют одинаковую площадь',correct:false,explanation:'Нет, например 10×2 (P=24, S=20) и 8×4 (P=24, S=32)'},
+        {text:'Площадь прямоугольника 6×4 = 24 кв.см',correct:true,explanation:'S = 6 × 4 = 24 кв.см — верно'}
+      ]
+    }},
+    {topic_id:26, task_type:'match_pairs', sort_order:3, task_data:{
+      instruction:'Соедини фигуру с её площадью',
+      pairs:[{left:'Квадрат 5×5',right:'25 кв.см'},{left:'Прямоугольник 6×3',right:'18 кв.см'},{left:'Квадрат 10×10',right:'100 кв.см'},{left:'Прямоугольник 8×4',right:'32 кв.см'},{left:'Прямоугольник 9×2',right:'18 кв.см'}]
+    }},
+
+    // Topic 27: Доли и дроби
+    {topic_id:27, task_type:'match_pairs', sort_order:1, task_data:{
+      instruction:'Соедини дробь с описанием',
+      pairs:[{left:'1/2',right:'Половина'},{left:'1/4',right:'Четверть'},{left:'1/3',right:'Треть'},{left:'3/4',right:'Три четверти'},{left:'1/8',right:'Одна восьмая'}]
+    }},
+    {topic_id:27, task_type:'true_false', sort_order:2, task_data:{
+      instruction:'Правда или ложь?',
+      statements:[
+        {text:'1/2 больше, чем 1/4',correct:true,explanation:'Половина больше четверти'},
+        {text:'2/3 меньше, чем 1/3',correct:false,explanation:'2/3 больше 1/3'},
+        {text:'1/4 от 20 равно 5',correct:true,explanation:'20 ÷ 4 = 5'},
+        {text:'3/8 от 40 равно 12',correct:false,explanation:'40 ÷ 8 = 5, 5 × 3 = 15, а не 12'}
+      ]
+    }},
+    {topic_id:27, task_type:'fill_blank', sort_order:3, task_data:{
+      instruction:'Впиши пропущенное',
+      questions:[
+        {text:'1/3 от 24 = ___',answer:'8',hint:'24 ÷ 3 = ?'},
+        {text:'1/5 от 35 = ___',answer:'7',hint:'35 ÷ 5 = ?'},
+        {text:'3/4 от 16 = ___',answer:'12',hint:'16 ÷ 4 = 4, потом 4 × 3 = ?'}
+      ]
+    }},
+
+    // Topic 28: Время и календарь
+    {topic_id:28, task_type:'fill_blank', sort_order:1, task_data:{
+      instruction:'Впиши пропущенное',
+      questions:[
+        {text:'В 1 часе ___ минут',answer:'60',hint:'Сколько минут в часе?'},
+        {text:'2 часа 30 минут = ___ минут',answer:'150',hint:'2 × 60 + 30 = ?'},
+        {text:'В 1 сутках ___ часов',answer:'24',hint:'Сколько часов в сутках?'}
+      ]
+    }},
+    {topic_id:28, task_type:'true_false', sort_order:2, task_data:{
+      instruction:'Правда или ложь?',
+      statements:[
+        {text:'В году 365 или 366 дней',correct:true,explanation:'В обычном году 365, в високосном 366'},
+        {text:'В феврале всегда 28 дней',correct:false,explanation:'В високосном году в феврале 29 дней'},
+        {text:'90 минут = 1 час 20 минут',correct:false,explanation:'90 минут = 1 час 30 минут'},
+        {text:'3 часа = 180 минут',correct:true,explanation:'3 × 60 = 180'}
+      ]
+    }},
+    {topic_id:28, task_type:'ordering', sort_order:3, task_data:{
+      instruction:'Расставь единицы времени от меньшей к большей',
+      items:['Секунда','Минута','Час','Сутки','Неделя','Месяц','Год'],
+      correct_order:['Секунда','Минута','Час','Сутки','Неделя','Месяц','Год']
+    }},
+
+    // Topic 29: Задачи на стоимость
+    {topic_id:29, task_type:'fill_blank', sort_order:1, task_data:{
+      instruction:'Реши задачу',
+      questions:[
+        {text:'Тетрадь стоит 15 руб. Купили 6 тетрадей. Стоимость: ___',answer:'90 руб',hint:'Цена × Количество = Стоимость: 15 × 6 = ?'},
+        {text:'За 8 ручек заплатили 120 руб. Цена одной ручки: ___',answer:'15 руб',hint:'Стоимость ÷ Количество = Цена: 120 ÷ 8 = ?'},
+        {text:'Цена пирожка 25 руб. На 200 руб можно купить ___ пирожков',answer:'8',hint:'Стоимость ÷ Цена = Количество: 200 ÷ 25 = ?'}
+      ]
+    }},
+    {topic_id:29, task_type:'true_false', sort_order:2, task_data:{
+      instruction:'Проверь решение',
+      statements:[
+        {text:'5 карандашей по 12 руб = 60 руб',correct:true,explanation:'5 × 12 = 60 — верно'},
+        {text:'На 100 руб можно купить 4 булочки по 30 руб',correct:false,explanation:'4 × 30 = 120, а не 100. Можно купить только 3'},
+        {text:'Цена = Стоимость ÷ Количество',correct:true,explanation:'Верная формула'},
+        {text:'7 тетрадей по 18 руб стоят 116 руб',correct:false,explanation:'7 × 18 = 126, а не 116'}
+      ]
+    }},
+    {topic_id:29, task_type:'match_pairs', sort_order:3, task_data:{
+      instruction:'Соедини задачу с ответом',
+      pairs:[{left:'4 × 25 руб',right:'100 руб'},{left:'150 ÷ 5',right:'30 руб'},{left:'8 × 12 руб',right:'96 руб'},{left:'200 ÷ 8',right:'25 руб'},{left:'6 × 15 руб',right:'90 руб'}]
+    }},
+
+    // Topic 30: Задачи в три действия
+    {topic_id:30, task_type:'fill_blank', sort_order:1, task_data:{
+      instruction:'Реши задачу по шагам',
+      questions:[
+        {text:'В магазине 3 полки. На каждой по 8 книг. Продали 10 книг. Осталось: ___',answer:'14',hint:'1) 3 × 8 = 24; 2) 24 — 10 = 14'},
+        {text:'Мама купила 4 пачки печенья по 6 штук и 3 конфеты. Всего сладостей: ___',answer:'27',hint:'1) 4 × 6 = 24; 2) 24 + 3 = 27'},
+        {text:'У Пети 50 руб. Он купил 3 ручки по 12 руб. Сдача: ___',answer:'14 руб',hint:'1) 3 × 12 = 36; 2) 50 — 36 = 14'}
+      ]
+    }},
+    {topic_id:30, task_type:'ordering', sort_order:2, task_data:{
+      instruction:'Расставь шаги решения в правильном порядке для задачи: «В саду 4 ряда по 5 яблонь. С каждой яблони собрали 10 кг. Сколько всего кг?»',
+      items:['Найти количество яблонь: 4 × 5 = 20','Найти общий урожай: 20 × 10 = 200 кг','Записать ответ: 200 кг'],
+      correct_order:['Найти количество яблонь: 4 × 5 = 20','Найти общий урожай: 20 × 10 = 200 кг','Записать ответ: 200 кг']
+    }},
+    {topic_id:30, task_type:'true_false', sort_order:3, task_data:{
+      instruction:'Проверь решение задачи',
+      statements:[
+        {text:'В задаче «5 коробок по 6 карандашей, раздали 12» ответ 18',correct:true,explanation:'5×6=30, 30-12=18 — верно'},
+        {text:'В задаче «3 пакета по 4 яблока + 2 груши» всего 16 фруктов',correct:false,explanation:'3×4=12, 12+2=14, а не 16'},
+        {text:'Задачу в 3 действия всегда нужно решать слева направо',correct:false,explanation:'Нет, нужно определить порядок по смыслу задачи'},
+        {text:'В задаче «8 рядов по 7 стульев, убрали 6» осталось 50 стульев',correct:true,explanation:'8×7=56, 56-6=50 — верно'}
+      ]
+    }}
+  ];
+
+  try {
+    await pool.query("CREATE TABLE IF NOT EXISTS interactive_tasks (id SERIAL PRIMARY KEY, topic_id INTEGER REFERENCES topics(id), task_type VARCHAR(30) NOT NULL, task_data JSONB NOT NULL, sort_order INTEGER DEFAULT 0)");
+    let count = 0;
+    for (const t of tasks) {
+      await pool.query('INSERT INTO interactive_tasks (topic_id, task_type, task_data, sort_order) VALUES ($1,$2,$3,$4)', [t.topic_id, t.task_type, JSON.stringify(t.task_data), t.sort_order]);
+      count++;
+    }
+    res.json({success:true, inserted:count, message:'Темы 21-30 загружены!'});
+  } catch(e) {
+    res.status(500).json({error:e.message});
+  }
+});
 
 app.listen(PORT, function() { console.log('API running on port ' + PORT); });
