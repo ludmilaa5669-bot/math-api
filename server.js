@@ -417,4 +417,54 @@ app.post('/api/admin/sql', async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+// Interactive tasks table creation
+app.get('/api/setup/interactive', async (req, res) => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS interactive_tasks (
+        id SERIAL PRIMARY KEY,
+        topic_id INTEGER REFERENCES topics(id),
+        task_type VARCHAR(30) NOT NULL,
+        task_data JSONB NOT NULL,
+        sort_order INTEGER DEFAULT 0
+      )
+    `);
+    res.json({ success: true, message: 'Table interactive_tasks created' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Get interactive tasks for a topic
+app.get('/api/interactive/:topicId', async (req, res) => {
+  try {
+    const { topicId } = req.params;
+    const result = await pool.query(
+      'SELECT id, topic_id, task_type, task_data, sort_order FROM interactive_tasks WHERE topic_id = $1 ORDER BY sort_order',
+      [topicId]
+    );
+    res.json(result.rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Insert interactive tasks (batch)
+app.post('/api/interactive/batch', async (req, res) => {
+  const { key, tasks } = req.body;
+  if (key !== 'math2025admin') return res.status(403).json({ error: 'forbidden' });
+  try {
+    let count = 0;
+    for (const t of tasks) {
+      await pool.query(
+        'INSERT INTO interactive_tasks (topic_id, task_type, task_data, sort_order) VALUES ($1, $2, $3, $4)',
+        [t.topic_id, t.task_type, JSON.stringify(t.task_data), t.sort_order || 0]
+      );
+      count++;
+    }
+    res.json({ success: true, inserted: count });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 app.listen(PORT, function() { console.log('API running on port ' + PORT); });
