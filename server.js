@@ -1068,5 +1068,49 @@ app.get('/api/admin/load-tasks5', async (req, res) => {
     res.status(500).json({error:e.message});
   }
 });
+// Fix true_false data
+app.get('/api/admin/fix-tf', async (req, res) => {
+  if (req.query.key !== 'math2025admin') return res.status(403).json({error:'Forbidden'});
+  try {
+    // Get all true_false tasks
+    const result = await pool.query("SELECT id, task_data FROM interactive_tasks WHERE task_type = 'true_false'");
+    let fixed = 0;
+    for (const row of result.rows) {
+      let data = row.task_data;
+      let changed = false;
+      // Fix "answer" -> "correct" in statements
+      if (data.statements) {
+        data.statements = data.statements.map(s => {
+          if (s.answer !== undefined && s.correct === undefined) {
+            changed = true;
+            return {...s, correct: s.answer};
+          }
+          return s;
+        });
+      }
+      if (changed) {
+        await pool.query('UPDATE interactive_tasks SET task_data = $1 WHERE id = $2', [JSON.stringify(data), row.id]);
+        fixed++;
+      }
+    }
+    // Also fix specific math error: 51+36=88 should be false
+    const r2 = await pool.query("SELECT id, task_data FROM interactive_tasks WHERE topic_id = 11 AND task_type = 'true_false'");
+    for (const row of r2.rows) {
+      let data = row.task_data;
+      if (data.statements) {
+        data.statements = data.statements.map(s => {
+          if (s.text && s.text.includes('51 + 36 = 88')) {
+            return {...s, correct: false, answer: false, explanation: 'Неверно! 51 + 36 = 87, а не 88'};
+          }
+          return s;
+        });
+        await pool.query('UPDATE interactive_tasks SET task_data = $1 WHERE id = $2', [JSON.stringify(data), row.id]);
+      }
+    }
+    res.json({success:true, fixed:fixed, message:'True/false data fixed!'});
+  } catch(e) {
+    res.status(500).json({error:e.message});
+  }
+});
 
 app.listen(PORT, function() { console.log('API running on port ' + PORT); });
