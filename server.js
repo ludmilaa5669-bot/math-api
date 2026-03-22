@@ -406,4 +406,15 @@ app.get('/api/admin/test-results', async function(req, res) {
 });
 
 var PORT = process.env.PORT || 3000;
+// Temporary SQL endpoint for admin
+app.post('/api/admin/sql', async (req, res) => {
+  const { key, query } = req.body;
+  if (key !== 'math2025admin') return res.status(403).json({ error: 'forbidden' });
+  try {
+    const result = await pool.query(query);
+    res.json({ rowCount: result.rowCount, rows: result.rows ? result.rows.slice(0, 50) : [] });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 app.listen(PORT, function() { console.log('API running on port ' + PORT); });
