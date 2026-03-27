@@ -1334,5 +1334,6 @@ app.get('/api/admin/fix-scores', async (req, res) => {
     res.json({success:true, fixed, message:'Scores converted to percentages'});
   } catch(e) { res.status(500).json({error:e.message}); }
 });
+require('./homework-route')(app);
 
 app.listen(PORT, function() { console.log('API running on port ' + PORT); });
