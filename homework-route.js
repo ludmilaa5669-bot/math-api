@@ -1,5 +1,9 @@
 module.exports = function(app) {
 
+  // Увеличиваем лимит для загрузки фото
+  var express = require('express');
+  app.use('/api/homework', express.json({ limit: '50mb' }));
+
   app.post('/api/homework/analyze', async (req, res) => {
     try {
       const { image, childGrade } = req.body;
@@ -9,6 +13,7 @@ module.exports = function(app) {
       }
 
       console.log('Photo received for analysis, grade:', childGrade);
+      console.log('Image length:', image.length);
 
       const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -46,6 +51,7 @@ module.exports = function(app) {
       });
 
       const data = await openaiResponse.json();
+      console.log('OpenAI response status:', openaiResponse.status);
 
       if (data.error) {
         console.error('OpenAI error:', data.error);
@@ -68,9 +74,10 @@ module.exports = function(app) {
   app.get('/api/homework/test', function(req, res) {
     res.json({ 
       status: 'ok', 
-      message: 'Homework route is loaded',
+      message: 'Homework route is loaded v2',
       hasOpenAIKey: !!process.env.OPENAI_API_KEY
     });
   });
 
 };
+
