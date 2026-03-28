@@ -34,7 +34,22 @@ module.exports = function(app) {
   app.get('/api/homework/test', function(req, res) {
     res.json({ status: 'ok', message: 'Homework route is loaded v3', hasOpenAIKey: !!process.env.OPENAI_API_KEY });
   });
-
+  
+ // ===== REGISTRATION CHECK =====
+  app.post('/api/check-child', async function(req, res) {
+    try {
+      var parentId = req.body.parentId;
+      if (!parentId) return res.status(400).json({ error: 'parentId required' });
+      var Pool = require('pg').Pool;
+      var pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      var existing = await pool.query('SELECT id, name FROM children WHERE parent_id=$1', [parentId]);
+      if (existing.rows.length > 0) {
+        return res.json({ hasChild: true, child: existing.rows[0] });
+      }
+      res.json({ hasChild: false });
+    } catch(error) { res.status(500).json({ error: error.message }); }
+  });
+  
   // ===== ADMIN =====
   app.get('/api/admin/db', async function(req, res) {
     if (req.query.key !== 'math2025admin') return res.status(403).json({ error: 'Forbidden' });
