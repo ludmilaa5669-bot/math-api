@@ -171,7 +171,7 @@ module.exports = function(app) {
       });
 
       const payment = await response.json();
-      console.log('💳 Payment created:', payment.id, payment.status);
+      console.log('💳 Payment FULL response:', JSON.stringify(payment));
 
       // Сохраняем в БД
       const { Pool } = require('pg');
