@@ -108,5 +108,147 @@ module.exports = function(app) {
       res.status(500).json({ error: e.message });
     }
   });
+// ===== PAYMENTS =====
+  
+  // Создание таблицы payments при старте
+  const createPaymentsTable = async () => {
+    try {
+      const { Pool } = require('pg');
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS payments (
+          id SERIAL PRIMARY KEY,
+          parent_id INTEGER REFERENCES parents(id),
+          yookassa_id VARCHAR(255),
+          amount DECIMAL(10,2),
+          currency VARCHAR(10) DEFAULT 'RUB',
+          status VARCHAR(50) DEFAULT 'pending',
+          plan VARCHAR(50),
+          description TEXT,
+          created_at TIMESTAMP DEFAULT NOW(),
+          paid_at TIMESTAMP,
+          metadata JSONB
+        )
+      `);
+      console.log('✅ Payments table ready');
+    } catch(e) { console.error('payments table error:', e.message); }
+  };
+  createPaymentsTable();
 
+  // Создание платежа
+  app.post('/api/payments/create', async (req, res) => {
+    try {
+      const { plan, parentId, email, returnUrl } = req.body;
+      const plans = {
+        monthly: { amount: '990.00', description: 'Подписка на 1 месяц' },
+        halfyear: { amount: '1990.00', description: 'Подписка на 6 месяцев' },
+        family: { amount: '1490.00', description: 'Семейный план на 1 месяц' }
+      };
+      const selectedPlan = plans[plan];
+      if (!selectedPlan) return res.status(400).json({ error: 'Invalid plan' });
+
+      const shopId = process.env.YOOKASSA_SHOP_ID;
+      const secretKey = process.env.YOOKASSA_SECRET_KEY;
+      
+      if (!shopId || !secretKey) return res.status(500).json({ error: 'YooKassa not configured' });
+
+      const idempotenceKey = `${parentId}-${plan}-${Date.now()}`;
+      
+      const response = await fetch('https://api.yookassa.ru/v3/payments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Basic ' + Buffer.from(shopId + ':' + secretKey).toString('base64'),
+          'Idempotence-Key': idempotenceKey
+        },
+        body: JSON.stringify({
+          amount: { value: selectedPlan.amount, currency: 'RUB' },
+          capture: true,
+          confirmation: { type: 'redirect', return_url: returnUrl || 'https://math-explorer.lovable.app/payment-success' },
+          description: selectedPlan.description,
+          metadata: { parent_id: parentId, plan: plan, email: email }
+        })
+      });
+
+      const payment = await response.json();
+      console.log('💳 Payment created:', payment.id, payment.status);
+
+      // Сохраняем в БД
+      const { Pool } = require('pg');
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      await pool.query(
+        'INSERT INTO payments (parent_id, yookassa_id, amount, plan, status, description) VALUES ($1,$2,$3,$4,$5,$6)',
+        [parentId, payment.id, selectedPlan.amount, plan, payment.status, selectedPlan.description]
+      );
+
+      res.json({ success: true, confirmationUrl: payment.confirmation?.confirmation_url, paymentId: payment.id });
+    } catch(error) {
+      console.error('❌ Payment create error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Webhook от YooKassa
+  app.post('/api/payments/webhook', async (req, res) => {
+    try {
+      const { event, object } = req.body;
+      console.log('🔔 YooKassa webhook:', event, object?.id);
+
+      if (event === 'payment.succeeded') {
+        const { Pool } = require('pg');
+        const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+        
+        // Обновляем статус платежа
+        await pool.query(
+          'UPDATE payments SET status=$1, paid_at=NOW() WHERE yookassa_id=$2',
+          ['succeeded', object.id]
+        );
+
+        // Получаем данные платежа
+        const parentId = object.metadata?.parent_id;
+        const plan = object.metadata?.plan;
+        
+        if (parentId) {
+          // Определяем срок подписки
+          let months = 1;
+          if (plan === 'halfyear') months = 6;
+          
+          // Обновляем подписку
+          await pool.query(
+            `UPDATE subscriptions SET status='active', plan=$1, 
+             started_at=NOW(), expires_at=NOW() + INTERVAL '${months} months'
+             WHERE parent_id=$2`,
+            [plan, parentId]
+          );
+          console.log('✅ Subscription activated for parent:', parentId, 'plan:', plan, 'months:', months);
+        }
+      }
+
+      res.json({ success: true });
+    } catch(error) {
+      console.error('❌ Webhook error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Проверка статуса платежа
+  app.get('/api/payments/status/:paymentId', async (req, res) => {
+    try {
+      const { Pool } = require('pg');
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      const result = await pool.query('SELECT * FROM payments WHERE yookassa_id=$1', [req.params.paymentId]);
+      res.json(result.rows[0] || { error: 'Payment not found' });
+    } catch(error) { res.status(500).json({ error: error.message }); }
+  });
+
+  // Тест платежей
+  app.get('/api/payments/test', (req, res) => {
+    res.json({ 
+      status: 'ok', 
+      hasShopId: !!process.env.YOOKASSA_SHOP_ID,
+      hasSecretKey: !!process.env.YOOKASSA_SECRET_KEY,
+      message: 'Payment routes loaded'
+    });
+  });
+  
 };
