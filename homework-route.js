@@ -1,4 +1,4 @@
-Copymodule.exports = function(app) {
+module.exports = function(app) {
 
   // ===== HOMEWORK ANALYZE =====
   app.use('/api/homework', require('express').json({ limit: '50mb' }));
