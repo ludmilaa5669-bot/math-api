@@ -172,6 +172,27 @@ module.exports = function(app) {
             [plan, parentId]
           );
           console.log('✅ Subscription activated for parent:', parentId);
+       // Проверить реферала и начислить бонус
+          try {
+            var refCheck = await pool.query("SELECT referrer_parent_id FROM referrals WHERE referred_parent_id=$1 AND status='registered'", [parentId]);
+            if (refCheck.rows.length > 0) {
+              var referrerId = refCheck.rows[0].referrer_parent_id;
+              await pool.query("UPDATE referrals SET status='paid', paid_at=NOW() WHERE referred_parent_id=$1", [parentId]);
+              
+              var paidCount = await pool.query("SELECT COUNT(*) as count FROM referrals WHERE referrer_parent_id=$1 AND status='paid'", [referrerId]);
+              var paidFriends = parseInt(paidCount.rows[0].count);
+              
+              if (paidFriends === 5) {
+                await pool.query('UPDATE parents SET bonus_days = bonus_days + 30 WHERE id=$1', [referrerId]);
+                await pool.query("UPDATE subscriptions SET expires_at = expires_at + INTERVAL '30 days' WHERE parent_id=$1", [referrerId]);
+              }
+              if (paidFriends === 10) {
+                await pool.query('UPDATE parents SET bonus_days = bonus_days + 90 WHERE id=$1', [referrerId]);
+                await pool.query("UPDATE subscriptions SET expires_at = expires_at + INTERVAL '90 days' WHERE parent_id=$1", [referrerId]);
+              }
+              console.log('🎁 Referral bonus from webhook: referrer=' + referrerId + ', paidFriends=' + paidFriends);
+            }
+          } catch(refErr) { console.error('Referral webhook error:', refErr.message); }
         }
       }
       res.json({ success: true });
