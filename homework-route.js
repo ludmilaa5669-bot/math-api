@@ -74,9 +74,9 @@ module.exports = function(app) {
           'Authorization': 'Bearer ' + resendKey
         },
         body: JSON.stringify({
-          from: 'МатЛегко <onboarding@resend.dev>',
+          from: 'Математика <onboarding@resend.dev>',
           to: [email],
-          subject: 'Код подтверждения — МатЛегко',
+          subject: 'Код подтверждения — Математика',
           html: '<div style="font-family:Arial;max-width:400px;margin:0 auto;text-align:center;padding:20px"><h2 style="color:#f97316">МатЛегко</h2><p>Ваш код подтверждения:</p><div style="font-size:32px;font-weight:bold;letter-spacing:8px;background:#fff3e0;padding:16px;border-radius:12px;margin:16px 0">' + code + '</div><p style="color:#888;font-size:14px">Код действителен 10 минут</p></div>'
         })
       });
