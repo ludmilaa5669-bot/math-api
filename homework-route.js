@@ -249,6 +249,32 @@ module.exports = function(app) {
   createReferralsTable();
 
   // Получить или создать реф-код
+  // Таблица лидеров рефералов
+  app.get('/api/referral/leaderboard', async function(req, res) {
+    try {
+      var Pool = require('pg').Pool;
+      var pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      var result = await pool.query(
+        "SELECT p.id, p.email, p.ref_code, p.bonus_days, " +
+        "(SELECT COUNT(*) FROM referrals r WHERE r.referrer_parent_id = p.id) as invited_count, " +
+        "(SELECT COUNT(*) FROM referrals r WHERE r.referrer_parent_id = p.id AND r.status = 'paid') as paid_count " +
+        "FROM parents p WHERE p.ref_code IS NOT NULL " +
+        "ORDER BY invited_count DESC LIMIT 20"
+      );
+      var leaders = result.rows.map(function(row, index) {
+        var emailParts = row.email ? row.email.split('@') : ['***'];
+        var maskedEmail = emailParts[0].substring(0, 3) + '***@' + (emailParts[1] || '');
+        return {
+          rank: index + 1,
+          maskedEmail: maskedEmail,
+          invitedCount: parseInt(row.invited_count),
+          paidCount: parseInt(row.paid_count),
+          bonusDays: row.bonus_days || 0
+        };
+      });
+      res.json({ leaders: leaders });
+    } catch(error) { res.status(500).json({ error: error.message }); }
+  });
   app.get('/api/referral/code', async function(req, res) {
     try {
       var parentId = req.query.parentId;
