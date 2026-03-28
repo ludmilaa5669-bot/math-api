@@ -17,15 +17,25 @@ module.exports = function(app) {
           'Authorization': 'Bearer ' + process.env.OPENAI_API_KEY
         },
         body: JSON.stringify({
-          model: 'gpt-4o',
-          messages: [
-            { role: 'system', content: 'Ты Мудрик - дружелюбный репетитор по математике для ребёнка ' + (childGrade || 2) + ' класса. Когда ребёнок присылает фото задания, ты ОБЯЗАТЕЛЬНО: 1) Распознаёшь ВСЕ задания на фото. 2) Решаешь КАЖДОЕ задание подробно по шагам. Формат: 📝 Задача: (условие). 📖 Решение по шагам: Шаг 1: ... Шаг 2: ... ✅ Ответ: ... ✏️ ЗАПИШИ В ТЕТРАДЬ: Задача: ... Решение: 1) ... 2) ... Ответ: ... 💡 Запомни: (правило). НИКОГДА не спрашивай ребёнка - сразу давай полное решение. Отвечай на русском.' },
-            { role: 'user', content: [{ type: 'text', text: 'Реши все задания на этом фото. Отвечай на русском.' }, { type: 'image_url', image_url: { url: image, detail: 'high' } }] }
-          ],
-          max_tokens: 4000,
-          temperature: 0.3
+          amount: { value: selectedPlan.amount, currency: 'RUB' },
+          capture: true,
+          confirmation: { type: 'redirect', return_url: returnUrl || 'https://math-explorer.lovable.app/payment-success' },
+          description: selectedPlan.description,
+          metadata: { parent_id: parentId, plan: plan, email: email },
+          receipt: {
+            customer: {
+              email: email || 'noreply@math-easy.ru'
+            },
+            items: [{
+              description: selectedPlan.description,
+              quantity: '1.00',
+              amount: { value: selectedPlan.amount, currency: 'RUB' },
+              vat_code: 1,
+              payment_mode: 'full_payment',
+              payment_subject: 'service'
+            }]
+          }
         })
-      });
 
       const data = await openaiResponse.json();
       if (data.error) return res.status(500).json({ error: data.error.message });
