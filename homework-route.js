@@ -198,5 +198,140 @@ module.exports = function(app) {
       message: 'Payment routes loaded v2'
     });
   });
+// ===== REFERRALS =====
+  var createReferralsTable = async function() {
+    try {
+      var Pool = require('pg').Pool;
+      var pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      await pool.query("CREATE TABLE IF NOT EXISTS referrals (id SERIAL PRIMARY KEY, referrer_parent_id INTEGER, referred_parent_id INTEGER, referred_email VARCHAR(255), status VARCHAR(50) DEFAULT 'registered', bonus_days_given INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT NOW(), paid_at TIMESTAMP)");
+      await pool.query("ALTER TABLE parents ADD COLUMN IF NOT EXISTS ref_code VARCHAR(50)");
+      await pool.query("ALTER TABLE parents ADD COLUMN IF NOT EXISTS referred_by INTEGER");
+      await pool.query("ALTER TABLE parents ADD COLUMN IF NOT EXISTS bonus_days INTEGER DEFAULT 0");
+      console.log('✅ Referrals table ready');
+    } catch(e) { console.error('referrals table error:', e.message); }
+  };
+  createReferralsTable();
 
+  // Получить или создать реф-код
+  app.get('/api/referral/code', async function(req, res) {
+    try {
+      var parentId = req.query.parentId;
+      if (!parentId) return res.status(400).json({ error: 'parentId required' });
+      var Pool = require('pg').Pool;
+      var pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      var result = await pool.query('SELECT ref_code FROM parents WHERE id=$1', [parentId]);
+      if (result.rows.length === 0) return res.status(404).json({ error: 'Parent not found' });
+      var refCode = result.rows[0].ref_code;
+      if (!refCode) {
+        refCode = 'MF' + parentId + Math.random().toString(36).substring(2, 6).toUpperCase();
+        await pool.query('UPDATE parents SET ref_code=$1 WHERE id=$2', [refCode, parentId]);
+      }
+      res.json({ refCode: refCode });
+    } catch(error) { res.status(500).json({ error: error.message }); }
+  });
+
+  // Статистика рефералов
+  app.get('/api/referral/stats', async function(req, res) {
+    try {
+      var parentId = req.query.parentId;
+      if (!parentId) return res.status(400).json({ error: 'parentId required' });
+      var Pool = require('pg').Pool;
+      var pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      var registered = await pool.query("SELECT COUNT(*) as count FROM referrals WHERE referrer_parent_id=$1", [parentId]);
+      var paid = await pool.query("SELECT COUNT(*) as count FROM referrals WHERE referrer_parent_id=$1 AND status='paid'", [parentId]);
+      var bonus = await pool.query("SELECT bonus_days FROM parents WHERE id=$1", [parentId]);
+      var refCode = await pool.query("SELECT ref_code FROM parents WHERE id=$1", [parentId]);
+      res.json({
+        registeredCount: parseInt(registered.rows[0].count),
+        paidCount: parseInt(paid.rows[0].count),
+        bonusDays: bonus.rows[0] ? bonus.rows[0].bonus_days : 0,
+        refCode: refCode.rows[0] ? refCode.rows[0].ref_code : null
+      });
+    } catch(error) { res.status(500).json({ error: error.message }); }
+  });
+
+  // Регистрация реферала (вызывается при регистрации нового пользователя)
+  app.post('/api/referral/register', async function(req, res) {
+    try {
+      var refCode = req.body.refCode;
+      var newParentId = req.body.newParentId;
+      var email = req.body.email;
+      if (!refCode || !newParentId) return res.status(400).json({ error: 'refCode and newParentId required' });
+      var Pool = require('pg').Pool;
+      var pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      
+      // Найти кто пригласил
+      var referrer = await pool.query('SELECT id FROM parents WHERE ref_code=$1', [refCode]);
+      if (referrer.rows.length === 0) return res.status(404).json({ error: 'Invalid ref code' });
+      var referrerId = referrer.rows[0].id;
+      
+      // Сохранить связь
+      await pool.query('INSERT INTO referrals (referrer_parent_id, referred_parent_id, referred_email) VALUES ($1,$2,$3)', [referrerId, newParentId, email]);
+      await pool.query('UPDATE parents SET referred_by=$1 WHERE id=$2', [referrerId, newParentId]);
+      
+      // Бонус приглашающему: +7 дней за регистрацию
+      await pool.query('UPDATE parents SET bonus_days = bonus_days + 7 WHERE id=$1', [referrerId]);
+      
+      // Продлить подписку приглашающему на 7 дней
+      await pool.query("UPDATE subscriptions SET expires_at = expires_at + INTERVAL '7 days' WHERE parent_id=$1", [referrerId]);
+      
+      // Дать приглашённому 7 дней вместо 5
+      await pool.query("UPDATE subscriptions SET expires_at = started_at + INTERVAL '7 days' WHERE parent_id=$1", [newParentId]);
+      
+      // Проверить уровни бонусов
+      var totalRegistered = await pool.query("SELECT COUNT(*) as count FROM referrals WHERE referrer_parent_id=$1", [referrerId]);
+      var count = parseInt(totalRegistered.rows[0].count);
+      
+      // 3 друга зарегистрировались → ещё +14 дней
+      if (count === 3) {
+        await pool.query('UPDATE parents SET bonus_days = bonus_days + 14 WHERE id=$1', [referrerId]);
+        await pool.query("UPDATE subscriptions SET expires_at = expires_at + INTERVAL '14 days' WHERE parent_id=$1", [referrerId]);
+      }
+      
+      console.log('🎁 Referral registered: ' + referrerId + ' invited ' + newParentId + ' (total: ' + count + ')');
+      res.json({ success: true, referrerId: referrerId, totalReferred: count });
+    } catch(error) { res.status(500).json({ error: error.message }); }
+  });
+
+  // Отметить реферала как оплатившего (вызывается из webhook при оплате)
+  app.post('/api/referral/mark-paid', async function(req, res) {
+    try {
+      var paidParentId = req.body.parentId;
+      if (!paidParentId) return res.status(400).json({ error: 'parentId required' });
+      var Pool = require('pg').Pool;
+      var pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      
+      // Найти кто пригласил этого пользователя
+      var ref = await pool.query("SELECT referrer_parent_id FROM referrals WHERE referred_parent_id=$1 AND status='registered'", [paidParentId]);
+      if (ref.rows.length === 0) return res.json({ success: true, message: 'No referrer found' });
+      
+      var referrerId = ref.rows[0].referrer_parent_id;
+      
+      // Обновить статус
+      await pool.query("UPDATE referrals SET status='paid', paid_at=NOW() WHERE referred_parent_id=$1", [paidParentId]);
+      
+      // Проверить сколько оплативших друзей
+      var paidCount = await pool.query("SELECT COUNT(*) as count FROM referrals WHERE referrer_parent_id=$1 AND status='paid'", [referrerId]);
+      var count = parseInt(paidCount.rows[0].count);
+      
+      // 5 друзей оплатили → +30 дней
+      if (count === 5) {
+        await pool.query('UPDATE parents SET bonus_days = bonus_days + 30 WHERE id=$1', [referrerId]);
+        await pool.query("UPDATE subscriptions SET expires_at = expires_at + INTERVAL '30 days' WHERE parent_id=$1", [referrerId]);
+      }
+      // 10 друзей оплатили → +90 дней
+      if (count === 10) {
+        await pool.query('UPDATE parents SET bonus_days = bonus_days + 90 WHERE id=$1', [referrerId]);
+        await pool.query("UPDATE subscriptions SET expires_at = expires_at + INTERVAL '90 days' WHERE parent_id=$1", [referrerId]);
+      }
+      
+      console.log('💰 Referral paid: parent ' + paidParentId + ', referrer ' + referrerId + ' (paid friends: ' + count + ')');
+      res.json({ success: true, referrerId: referrerId, paidFriends: count });
+    } catch(error) { res.status(500).json({ error: error.message }); }
+  });
+
+  app.get('/api/referral/test', function(req, res) {
+    res.json({ status: 'ok', message: 'Referral routes loaded' });
+  });
+  
 };
