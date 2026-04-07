@@ -57,7 +57,7 @@ module.exports = function(app) {
 
       var existing = await pool.query("SELECT id FROM parents WHERE email=$1 AND email_verified=true", [email]);
       if (existing.rows.length > 0) {
-        return res.status(400).json({ error: 'Этот email уже зарегистрирован. Используйте вход.' });
+       return res.status(400).json({ error: 'Этот email уже зарегистрирован. Используйте вход.', alreadyRegistered: true });
       }
 
       var code = String(Math.floor(100000 + Math.random() * 900000));
