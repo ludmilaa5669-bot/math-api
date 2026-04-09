@@ -104,10 +104,7 @@ module.exports = function(app) {
       var Pool = require('pg').Pool;
       var pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
 
-      var result = await pool.query(
-        "SELECT * FROM email_verifications WHERE email=$1 AND code=$2 AND verified=false AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1",
-        [email, code]
-      );
+      var result = await pool.query('UPDATE parents SET password_hash=$1 WHERE email=$2 RETURNING id, email', [hash, email]);
 
       if (result.rows.length === 0) {
         return res.status(400).json({ error: 'Неверный или просроченный код' });
