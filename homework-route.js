@@ -148,7 +148,7 @@ app.post('/api/auth/reset-password', async function(req, res) {
     var adminKey = req.body.adminKey;
     if (adminKey !== 'math2025admin') return res.status(403).json({ error: 'Forbidden' });
     if (!email || !newPassword) return res.status(400).json({ error: 'Email and newPassword required' });
-    var bcrypt = require('bcryptjs');
+    var bcrypt = require('bcrypt');
     var hash = await bcrypt.hash(newPassword, 10);
     var Pool = require('pg').Pool;
     var pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
