@@ -139,6 +139,24 @@ module.exports = function(app) {
       res.json({ hasChild: false });
     } catch(error) { res.status(500).json({ error: error.message }); }
   });
+
+  // ===== RESET PASSWORD =====
+app.post('/api/auth/reset-password', async function(req, res) {
+  try {
+    var email = req.body.email;
+    var newPassword = req.body.newPassword;
+    var adminKey = req.body.adminKey;
+    if (adminKey !== 'math2025admin') return res.status(403).json({ error: 'Forbidden' });
+    if (!email || !newPassword) return res.status(400).json({ error: 'Email and newPassword required' });
+    var bcrypt = require('bcryptjs');
+    var hash = await bcrypt.hash(newPassword, 10);
+    var Pool = require('pg').Pool;
+    var pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+    var result = await pool.query('UPDATE parents SET password=$1 WHERE email=$2 RETURNING id, email', [hash, email]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Email not found' });
+    res.json({ success: true, message: 'Password updated for ' + email });
+  } catch(error) { res.status(500).json({ error: error.message }); }
+});
   
   // ===== ADMIN =====
   app.get('/api/admin/db', async function(req, res) {
