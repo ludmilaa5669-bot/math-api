@@ -154,6 +154,57 @@ app.post('/api/auth/reset-password', async function(req, res) {
     res.json({ success: true, message: 'Password updated for ' + email });
   } catch(error) { res.status(500).json({ error: error.message }); }
 });
+
+// ===== FORGOT PASSWORD =====
+app.post('/api/auth/forgot-password', async function(req, res) {
+  try {
+    var email = req.body.email;
+    if (!email) return res.status(400).json({ error: 'Email required' });
+    var Pool = require('pg').Pool;
+    var pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+    var existing = await pool.query('SELECT id FROM parents WHERE email=$1', [email]);
+    if (existing.rows.length === 0) return res.status(404).json({ error: 'Аккаунт с таким email не найден' });
+    var code = String(Math.floor(100000 + Math.random() * 900000));
+    await pool.query("DELETE FROM email_verifications WHERE email=$1", [email]);
+    await pool.query("INSERT INTO email_verifications (email, code) VALUES ($1, $2)", [email, code]);
+    var resendKey = process.env.RESEND_API_KEY;
+    if (!resendKey) return res.status(500).json({ error: 'Email service not configured' });
+    var emailResponse = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + resendKey },
+      body: JSON.stringify({
+        from: 'Математика <onboarding@resend.dev>',
+        to: [email],
+        subject: 'Сброс пароля — Математика',
+        html: '<div style="font-family:Arial;max-width:400px;margin:0 auto;text-align:center;padding:20px"><h2 style="color:#f97316">Математика</h2><p>Код для сброса пароля:</p><div style="font-size:32px;font-weight:bold;letter-spacing:8px;background:#fff3e0;padding:16px;border-radius:12px;margin:16px 0">' + code + '</div><p style="color:#888;font-size:14px">Код действителен 10 минут</p></div>'
+      })
+    });
+    var emailResult = await emailResponse.json();
+    if (emailResponse.ok) {
+      res.json({ success: true, message: 'Код отправлен на ' + email });
+    } else {
+      res.status(500).json({ error: 'Не удалось отправить письмо: ' + (emailResult.message || 'unknown') });
+    }
+  } catch(error) { res.status(500).json({ error: error.message }); }
+});
+
+app.post('/api/auth/reset-with-code', async function(req, res) {
+  try {
+    var email = req.body.email;
+    var code = req.body.code;
+    var newPassword = req.body.newPassword;
+    if (!email || !code || !newPassword) return res.status(400).json({ error: 'Email, code and newPassword required' });
+    var Pool = require('pg').Pool;
+    var pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+    var result = await pool.query("SELECT * FROM email_verifications WHERE email=$1 AND code=$2 AND verified=false AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1", [email, code]);
+    if (result.rows.length === 0) return res.status(400).json({ error: 'Неверный или просроченный код' });
+    await pool.query("UPDATE email_verifications SET verified=true WHERE email=$1", [email]);
+    var bcrypt = require('bcryptjs');
+    var hash = await bcrypt.hash(newPassword, 10);
+    await pool.query('UPDATE parents SET password_hash=$1 WHERE email=$2', [hash, email]);
+    res.json({ success: true, message: 'Пароль успешно изменён' });
+  } catch(error) { res.status(500).json({ error: error.message }); }
+});
   
   // ===== ADMIN =====
   app.get('/api/admin/db', async function(req, res) {
